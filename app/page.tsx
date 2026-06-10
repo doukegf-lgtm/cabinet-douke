@@ -392,12 +392,6 @@ const ALL_CATEGORIES: Category[] = [
   ...DOSSIER_CATEGORIES_CONACCE,
 ];
 
-const uniqueCategories = Array.from(
-  new Map<string, Category>(
-    ALL_CATEGORIES.map((cat) => [cat.id, cat])
-  ).values()
-);
-
 const CATEGORY_STYLES = {
   project_douke: 'bg-blue-50 text-blue-700 border-blue-100',
   project_conacce: 'bg-emerald-50 text-emerald-700 border-emerald-100',
