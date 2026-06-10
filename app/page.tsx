@@ -65,6 +65,14 @@ import {
 // ============================================================
 // DONNÉES DE SECOURS PREMIUM (BACKUP CORE — NE PAS MODIFIER)
 // ============================================================
+type Category = {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+  description: string;
+};
+
 const BACKUP_OBJECTIVES = [
   {
     id: '1',
@@ -497,13 +505,11 @@ const DOSSIER_CATEGORIES_CONACCE = [
   },
 ];
 
-const ALL_CATEGORIES = [
-  ...DOSSIER_CATEGORIES_DOUKE,
-  ...DOSSIER_CATEGORIES_CONACCE,
-];
+const DOSSIER_CATEGORIES_DOUKE: Category[] = [ ... ];
+const DOSSIER_CATEGORIES_CONACCE: Category[] = [ ... ];
 
 const uniqueCategories = Array.from(
-  new Map(
+  new Map<string, Category>(
     ALL_CATEGORIES.map((cat) => [cat.id, cat])
   ).values()
 );
