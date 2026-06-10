@@ -505,8 +505,10 @@ const DOSSIER_CATEGORIES_CONACCE = [
   },
 ];
 
-const DOSSIER_CATEGORIES_DOUKE: Category[] = [ ... ];
-const DOSSIER_CATEGORIES_CONACCE: Category[] = [ ... ];
+const ALL_CATEGORIES: Category[] = [
+  ...DOSSIER_CATEGORIES_DOUKE,
+  ...DOSSIER_CATEGORIES_CONACCE,
+];
 
 const uniqueCategories = Array.from(
   new Map<string, Category>(
