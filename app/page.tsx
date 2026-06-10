@@ -500,14 +500,7 @@ const DOSSIER_CATEGORIES_CONACCE = [
 const ALL_CATEGORIES = [
   ...DOSSIER_CATEGORIES_DOUKE,
   ...DOSSIER_CATEGORIES_CONACCE,
-const uniqueCategories = Array.from(
-  new Map(
-    [
-      ...DOSSIER_CATEGORIES_CONACCE,
-      // ...AUTRES_TABLEAUX
-    ].map((cat) => [cat.id, cat])
-  ).values()
-);
+];
 
 const CATEGORY_STYLES = {
   project_douke: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -524,6 +517,12 @@ const CATEGORY_STYLES = {
   admin: 'bg-slate-50 text-slate-700 border-slate-200',
   other: 'bg-gray-50 text-gray-700 border-gray-100',
 };
+
+const uniqueCategories = Array.from(
+  new Map(
+    ALL_CATEGORIES.map((cat) => [cat.id, cat])
+  ).values()
+);
 
 // ============================================================
 // UTILITAIRES
@@ -717,6 +716,7 @@ function LoginScreen({ onLogin }) {
     </div>
   );
 }
+
 
 // ============================================================
 // MODAL COLLABORATEUR (CONSERVÉ + ENRICHI)
