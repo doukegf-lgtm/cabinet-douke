@@ -518,12 +518,6 @@ const CATEGORY_STYLES = {
   other: 'bg-gray-50 text-gray-700 border-gray-100',
 };
 
-const uniqueCategories = Array.from(
-  new Map(
-    ALL_CATEGORIES.map((cat) => [cat.id, cat])
-  ).values()
-);
-
 // ============================================================
 // UTILITAIRES
 // ============================================================
