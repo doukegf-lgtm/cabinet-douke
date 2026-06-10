@@ -518,6 +518,14 @@ const CATEGORY_STYLES = {
   other: 'bg-gray-50 text-gray-700 border-gray-100',
 };
 
+const uniqueCategories = Array.from(
+  new Map(
+    [
+      ...DOSSIER_CATEGORIES_DOUKE,
+      ...DOSSIER_CATEGORIES_CONACCE,
+    ].map((cat) => [cat.id, cat])
+  ).values()
+);
 // ============================================================
 // UTILITAIRES
 // ============================================================
