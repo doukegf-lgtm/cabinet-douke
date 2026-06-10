@@ -500,10 +500,14 @@ const DOSSIER_CATEGORIES_CONACCE = [
 const ALL_CATEGORIES = [
   ...DOSSIER_CATEGORIES_DOUKE,
   ...DOSSIER_CATEGORIES_CONACCE,
-].reduce((acc, cat) => {
-  if (!acc.find((c) => c.id === cat.id)) acc.push(cat);
-  return acc;
-}, []);
+const uniqueCategories = Array.from(
+  new Map(
+    [
+      ...DOSSIER_CATEGORIES_CONACCE,
+      // ...AUTRES_TABLEAUX
+    ].map((cat) => [cat.id, cat])
+  ).values()
+);
 
 const CATEGORY_STYLES = {
   project_douke: 'bg-blue-50 text-blue-700 border-blue-100',
