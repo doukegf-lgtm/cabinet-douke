@@ -183,10 +183,47 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
     setLoading(true);
     setError('');
 
-    // 🔌 SUPABASE AUTH — sera branché à l'étape 4
-    // Pour l'instant on laisse un placeholder qui retourne une erreur propre
-    setError('Connexion Supabase non encore configurée — Étape 4 à venir.');
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('auth_accounts')
+        .select('*')
+        .eq('username', username.trim().toLowerCase())
+        .eq('password_hash', password)
+        .single();
+
+      if (error || !data) {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          setLocked(true);
+          setError("Compte verrouillé après 5 tentatives. Contactez l'administrateur.");
+        } else {
+          setError(`Identifiants incorrects. Tentative ${newAttempts}/5.`);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Mapping Supabase → AuthAccount
+      const account: AuthAccount = {
+        id: data.id,
+        username: data.username,
+        password: data.password_hash,
+        name: data.name,
+        role: data.role,
+        orgId: data.org_id,
+        emoji: data.emoji,
+        collaborator_id: data.collaborator_id ?? '',
+        color: data.color,
+      };
+
+      setAttempts(0);
+      onLogin(account);
+
+    } catch (err) {
+      setError('Erreur de connexion. Vérifiez votre réseau.');
+      setLoading(false);
+    }
   };
 
   return (
