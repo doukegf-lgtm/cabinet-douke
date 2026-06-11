@@ -184,7 +184,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
     setError('');
 
     try {
-      const { data, error } = await supabase
+      
         .from('auth_accounts')
         .select('*')
         .eq('username', username.trim().toLowerCase())
@@ -273,12 +273,15 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
               </div>
             )}
             <button type="submit" disabled={loading || locked}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2">
-              {loading ? (
-                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Vérification...</span></>
-              ) : (
-                <><Lock size={14} /><span>Accéder au système</span></>
-              )}
+           const { data, error } = await supabase
+  .from('auth_accounts')
+  .select('*')
+  .eq('username', username.trim().toLowerCase())
+  .eq('password_hash', password)
+  .single();
+
+console.log('DATA:', JSON.stringify(data));
+console.log('ERROR:', JSON.stringify(error));
             </button>
           </form>
         </div>
@@ -362,11 +365,68 @@ export default function FullyLoadedPremiumDashboard() {
 
   // ---- CHARGEMENT DONNÉES — placeholder Supabase (étape 5) ----
   const loadData = async (user: AuthAccount | null = currentUser) => {
-    if (!user) return;
-    setLoading(true);
-    // 🔌 Les appels Supabase seront ajoutés à l'étape 5
+  if (!user) return;
+  setLoading(true);
+
+  try {
+    // 1. COLLABORATORS
+    const { data: collabData } = await supabase
+      .from('collaborators')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    // 2. OBJECTIVES — filtrés par org si pas Super-Admin
+    const objQuery = supabase
+      .from('objectives')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (user.orgId !== 'Tous') {
+      objQuery.eq('organization_id', user.orgId);
+    }
+    const { data: objData } = await objQuery;
+
+    // 3. ACTIVITIES
+    const { data: actData } = await supabase
+      .from('activities')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    // 4. REALISATIONS
+    const realQuery = supabase
+      .from('realisations')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (user.orgId !== 'Tous') {
+      realQuery.eq('user_id', user.collaborator_id);
+    }
+    const { data: realData } = await realQuery;
+
+    // 5. REMARQUES
+    const { data: remData } = await supabase
+      .from('remarques')
+      .select('*')
+      .order('date', { ascending: false });
+
+    // 6. MISE À JOUR DES ÉTATS
+    const collabs = (collabData ?? []) as Collaborator[];
+    const objs = (objData ?? []) as Objective[];
+
+    setCollaborators(collabs);
+    setObjectives(objs);
+    setActivities((actData ?? []) as Activity[]);
+    setRealisations((realData ?? []) as Realisation[]);
+    setRemarques((remData ?? []) as Remarque[]);
+    calculateMetrics(objs);
+
+  } catch (err) {
+    console.error('Erreur loadData:', err);
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   useEffect(() => {
     if (isAuthenticated && currentUser) loadData(currentUser);
