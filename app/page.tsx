@@ -377,14 +377,13 @@ export default function FullyLoadedPremiumDashboard() {
 
     // 2. OBJECTIVES — filtrés par org si pas Super-Admin
     const objQuery = supabase
-      .from('objectives')
-      .select('*')
-      .order('created_at', { ascending: false });
+  .from('objectives')
+  .select('*')
+  .order('created_at', { ascending: false });
 
-    if (user.orgId !== 'Tous') {
-      objQuery.eq('organization_id', user.orgId);
-    }
-    const { data: objData } = await objQuery;
+const { data: objData } = user.orgId !== 'Tous'
+  ? await objQuery.eq('organization_id', user.orgId)
+  : await objQuery;
 
     // 3. ACTIVITIES
     const { data: actData } = await supabase
@@ -395,14 +394,13 @@ export default function FullyLoadedPremiumDashboard() {
 
     // 4. REALISATIONS
     const realQuery = supabase
-      .from('realisations')
-      .select('*')
-      .order('date', { ascending: false });
+  .from('realisations')
+  .select('*')
+  .order('date', { ascending: false });
 
-    if (user.orgId !== 'Tous') {
-      realQuery.eq('user_id', user.collaborator_id);
-    }
-    const { data: realData } = await realQuery;
+const { data: realData } = user.orgId !== 'Tous'
+  ? await realQuery.eq('user_id', user.collaborator_id)
+  : await realQuery;
 
     // 5. REMARQUES
     const { data: remData } = await supabase
