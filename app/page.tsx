@@ -166,7 +166,7 @@ const computeStatus = (progress: number): string => {
 };
 
 // ============================================================
-// ÉCRAN DE CONNEXION — identique mais sans setTimeout ni AUTH_ACCOUNTS
+// ÉCRAN DE CONNEXION
 // ============================================================
 function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
   const [username, setUsername] = useState('');
@@ -182,15 +182,13 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
     if (locked) return;
     setLoading(true);
     setError('');
-
     try {
-      
+      const { data, error } = await supabase
         .from('auth_accounts')
         .select('*')
         .eq('username', username.trim().toLowerCase())
         .eq('password_hash', password)
         .single();
-
       if (error || !data) {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
@@ -203,8 +201,6 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         setLoading(false);
         return;
       }
-
-      // Mapping Supabase → AuthAccount
       const account: AuthAccount = {
         id: data.id,
         username: data.username,
@@ -216,11 +212,10 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         collaborator_id: data.collaborator_id ?? '',
         color: data.color,
       };
-
       setAttempts(0);
       onLogin(account);
-
     } catch (err) {
+      console.error(err);
       setError('Erreur de connexion. Vérifiez votre réseau.');
       setLoading(false);
     }
@@ -273,15 +268,12 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
               </div>
             )}
             <button type="submit" disabled={loading || locked}
-           const { data, error } = await supabase
-  .from('auth_accounts')
-  .select('*')
-  .eq('username', username.trim().toLowerCase())
-  .eq('password_hash', password)
-  .single();
-
-console.log('DATA:', JSON.stringify(data));
-console.log('ERROR:', JSON.stringify(error));
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2">
+              {loading ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Vérification...</span></>
+              ) : (
+                <><Lock size={14} /><span>Accéder au système</span></>
+              )}
             </button>
           </form>
         </div>
@@ -294,7 +286,7 @@ console.log('ERROR:', JSON.stringify(error));
 }
 
 // ============================================================
-// COMPOSANT PRINCIPAL — données vides, prêt pour Supabase
+// COMPOSANT PRINCIPAL
 // ============================================================
 export default function FullyLoadedPremiumDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -303,14 +295,12 @@ export default function FullyLoadedPremiumDashboard() {
   const [currentStructure, setCurrentStructure] = useState('Tous');
   const [loading, setLoading] = useState(false);
 
-  // États de données — vides, seront peuplés par Supabase
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [realisations, setRealisations] = useState<Realisation[]>([]);
   const [remarques, setRemarques] = useState<Remarque[]>([]);
 
-  // Modales
   const [isObjectiveModalOpen, setIsObjectiveModalOpen] = useState(false);
   const [isCollaboratorModalOpen, setIsCollaboratorModalOpen] = useState(false);
   const [isRealisationModalOpen, setIsRealisationModalOpen] = useState(false);
@@ -318,17 +308,14 @@ export default function FullyLoadedPremiumDashboard() {
   const [editingObjective, setEditingObjective] = useState<Objective | null>(null);
   const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
 
-  // Filtres
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Stats
   const [stats, setStats] = useState({
     totalObjectives: 0, globalProgress: 0, lateTasks: 0,
     pendingTasks: 0, conacceProgress: 0, doukeProgress: 0,
   });
 
-  // ---- AUTH ----
   const handleLogin = (account: AuthAccount) => {
     setCurrentUser(account);
     setIsAuthenticated(true);
@@ -343,7 +330,6 @@ export default function FullyLoadedPremiumDashboard() {
     }
   };
 
-  // ---- CALCUL STATS ----
   const calculateMetrics = (targetObjectives: Objective[]) => {
     const total = targetObjectives.length;
     const avg = total > 0
@@ -363,74 +349,61 @@ export default function FullyLoadedPremiumDashboard() {
     });
   };
 
-  // ---- CHARGEMENT DONNÉES — placeholder Supabase (étape 5) ----
   const loadData = async (user: AuthAccount | null = currentUser) => {
-  if (!user) return;
-  setLoading(true);
+    if (!user) return;
+    setLoading(true);
+    try {
+      const { data: collabData } = await supabase
+        .from('collaborators')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-  try {
-    // 1. COLLABORATORS
-    const { data: collabData } = await supabase
-      .from('collaborators')
-      .select('*')
-      .order('created_at', { ascending: true });
+      const objQuery = supabase
+        .from('objectives')
+        .select('*')
+        .order('created_at', { ascending: false });
+      const { data: objData } = user.orgId !== 'Tous'
+        ? await objQuery.eq('organization_id', user.orgId)
+        : await objQuery;
 
-    // 2. OBJECTIVES — filtrés par org si pas Super-Admin
-    const objQuery = supabase
-  .from('objectives')
-  .select('*')
-  .order('created_at', { ascending: false });
+      const { data: actData } = await supabase
+        .from('activities')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-const { data: objData } = user.orgId !== 'Tous'
-  ? await objQuery.eq('organization_id', user.orgId)
-  : await objQuery;
+      const realQuery = supabase
+        .from('realisations')
+        .select('*')
+        .order('date', { ascending: false });
+      const { data: realData } = user.orgId !== 'Tous'
+        ? await realQuery.eq('user_id', user.collaborator_id)
+        : await realQuery;
 
-    // 3. ACTIVITIES
-    const { data: actData } = await supabase
-      .from('activities')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
+      const { data: remData } = await supabase
+        .from('remarques')
+        .select('*')
+        .order('date', { ascending: false });
 
-    // 4. REALISATIONS
-    const realQuery = supabase
-  .from('realisations')
-  .select('*')
-  .order('date', { ascending: false });
-
-const { data: realData } = user.orgId !== 'Tous'
-  ? await realQuery.eq('user_id', user.collaborator_id)
-  : await realQuery;
-
-    // 5. REMARQUES
-    const { data: remData } = await supabase
-      .from('remarques')
-      .select('*')
-      .order('date', { ascending: false });
-
-    // 6. MISE À JOUR DES ÉTATS
-    const collabs = (collabData ?? []) as Collaborator[];
-    const objs = (objData ?? []) as Objective[];
-
-    setCollaborators(collabs);
-    setObjectives(objs);
-    setActivities((actData ?? []) as Activity[]);
-    setRealisations((realData ?? []) as Realisation[]);
-    setRemarques((remData ?? []) as Remarque[]);
-    calculateMetrics(objs);
-
-  } catch (err) {
-    console.error('Erreur loadData:', err);
-  } finally {
-    setLoading(false);
-  }
-};
+      const collabs = (collabData ?? []) as Collaborator[];
+      const objs = (objData ?? []) as Objective[];
+      setCollaborators(collabs);
+      setObjectives(objs);
+      setActivities((actData ?? []) as Activity[]);
+      setRealisations((realData ?? []) as Realisation[]);
+      setRemarques((remData ?? []) as Remarque[]);
+      calculateMetrics(objs);
+    } catch (err) {
+      console.error('Erreur loadData:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated && currentUser) loadData(currentUser);
   }, [currentUser, isAuthenticated]);
 
-  // ---- ACTIONS OBJECTIFS ----
   const handleUpdateProgress = (id: string, currentProgress: number, currentTitle: string, increment: number) => {
     const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
     const newStatus = computeStatus(newProgress);
@@ -470,7 +443,6 @@ const { data: realData } = user.orgId !== 'Tous'
     });
   };
 
-  // ---- ACTIONS COLLABORATEURS ----
   const handleSaveCollaborator = (formData: Collaborator) => {
     const isEdit = collaborators.find((c) => c.id === formData.id);
     setCollaborators((prev) => isEdit ? prev.map((c) => c.id === formData.id ? formData : c) : [...prev, formData]);
@@ -481,7 +453,6 @@ const { data: realData } = user.orgId !== 'Tous'
     setCollaborators((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // ---- ACTIONS RÉALISATIONS ----
   const handleSaveRealisation = (formData: Realisation) => {
     setRealisations((prev) => [formData, ...prev]);
     if (formData.objective_id && formData.progress_after !== undefined) {
@@ -489,7 +460,6 @@ const { data: realData } = user.orgId !== 'Tous'
     }
   };
 
-  // ---- GUARD ----
   if (!isAuthenticated || !currentUser) return <LoginScreen onLogin={handleLogin} />;
 
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
@@ -513,7 +483,6 @@ const { data: realData } = user.orgId !== 'Tous'
 
   return (
     <div className="flex h-screen bg-[#F1F5F9] font-sans text-slate-800 overflow-hidden">
-      {/* SIDEBAR */}
       <aside className="w-72 bg-[#0F172A] text-slate-300 flex flex-col shadow-2xl shrink-0 z-10 border-r border-slate-800">
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="p-6 flex items-center gap-3.5 border-b border-slate-800 bg-[#1E293B]/40">
@@ -575,7 +544,6 @@ const { data: realData } = user.orgId !== 'Tous'
         </div>
       </aside>
 
-      {/* MAIN */}
       <main className="flex-1 flex flex-col overflow-y-auto">
         <header className="bg-white border-b border-slate-200 h-20 px-8 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-6">
@@ -619,13 +587,12 @@ const { data: realData } = user.orgId !== 'Tous'
           ) : (
             <div className="text-center py-20 text-slate-400">
               <p className="text-4xl mb-4">🔌</p>
-              <p className="font-black text-sm uppercase tracking-wider">Connexion Supabase à configurer</p>
-              <p className="text-xs mt-2">Les données apparaîtront ici après l'étape 4 (auth) et l'étape 5 (fetch).</p>
+              <p className="font-black text-sm uppercase tracking-wider">Connexion Supabase active</p>
+              <p className="text-xs mt-2">Les données apparaîtront ici après l'étape 6 (CRUD).</p>
             </div>
           )}
         </div>
 
-        {/* FABs */}
         <div className="fixed bottom-8 right-8 flex flex-col gap-3">
           <button onClick={() => setIsRealisationModalOpen(true)}
             className="bg-gradient-to-tr from-emerald-600 to-emerald-700 hover:scale-105 text-white rounded-2xl shadow-2xl shadow-emerald-600/40 transition-transform flex items-center justify-center w-14 h-14">
