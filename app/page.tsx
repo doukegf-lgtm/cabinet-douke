@@ -699,22 +699,93 @@ export default function FullyLoadedPremiumDashboard() {
           </div>
         </header>
 
-        <div className="p-8">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-20 text-slate-400">
-              <p className="text-4xl mb-4">🔌</p>
-              <p className="font-black text-sm uppercase tracking-wider">Connexion Supabase active</p>
-              <p className="text-xs mt-2">Les données apparaîtront ici après l'étape 6 (CRUD).</p>
-            </div>
-          )}
+        <div className="p-8 space-y-8">
+  {loading ? (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+        <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
+      </div>
+    </div>
+  ) : (
+    <>
+      {currentView === 'Tableau de bord' && isAdmin && (
+        <AdminDashboard
+          objectives={displayObjectives}
+          collaborators={collaborators}
+          activities={activities}
+          realisations={realisations}
+          stats={stats}
+          currentStructure={currentStructure}
+          setCurrentView={setCurrentView}
+          currentUser={currentUser}
+        />
+      )}
+      {currentView === 'Tableau de bord' && isSenior && (
+        <SeniorDashboard
+          objectives={objectives}
+          collaborators={collaborators}
+          realisations={realisations}
+          remarques={remarques}
+          stats={stats}
+          currentUser={currentUser}
+        />
+      )}
+      {currentView === 'Tableau de bord' && isJuniorOrSecretary && (
+        <JuniorDashboard
+          objectives={objectives}
+          collaborators={collaborators}
+          realisations={realisations}
+          remarques={remarques}
+          currentUser={currentUser}
+          onSaisirRealisation={() => setIsRealisationModalOpen(true)}
+        />
+      )}
+      {currentView === 'Objectifs' && (
+        <ObjectifsView
+          objectives={objectives}
+          collaborators={collaborators}
+          currentUser={currentUser}
+          onAddObjective={() => { setEditingObjective(null); setIsObjectiveModalOpen(true); }}
+          onEditObjective={(obj) => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
+          onDeleteObjective={handleDeleteObjective}
+          onUpdateProgress={handleUpdateProgress}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+      )}
+      {currentView === 'Réalisations' && (
+        <RealisationsView
+          realisations={realisations}
+          objectives={objectives}
+          collaborators={collaborators}
+          currentUser={currentUser}
+          onAdd={() => setIsRealisationModalOpen(true)}
+        />
+      )}
+      {currentView === 'Planification' && (
+        <div className="bg-white rounded-2xl border p-12 shadow-sm text-center max-w-xl mx-auto my-12">
+          <div className="text-4xl mb-4">📅</div>
+          <h4 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planificateur de Livrables</h4>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">Module en cours de développement.</p>
         </div>
+      )}
+      {currentView === 'Équipe' && (
+        <EquipeView
+          collaborators={collaborators}
+          objectives={objectives}
+          realisations={realisations}
+          currentUser={currentUser}
+          onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
+          onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
+          onDeleteCollaborator={handleDeleteCollaborator}
+        />
+      )}
+    </>
+  )}
+</div>
 
         <div className="fixed bottom-8 right-8 flex flex-col gap-3">
           <button onClick={() => setIsRealisationModalOpen(true)}
@@ -729,6 +800,39 @@ export default function FullyLoadedPremiumDashboard() {
           )}
         </div>
       </main>
+
+      <ObjectiveModal
+        isOpen={isObjectiveModalOpen}
+        onClose={() => { setIsObjectiveModalOpen(false); setEditingObjective(null); }}
+        onSave={handleSaveObjective}
+        onDelete={handleDeleteObjective}
+        existing={editingObjective}
+        collaborators={collaborators}
+        currentUser={currentUser}
+      />
+      <CollaboratorModal
+        isOpen={isCollaboratorModalOpen}
+        onClose={() => { setIsCollaboratorModalOpen(false); setEditingCollaborator(null); }}
+        onSave={handleSaveCollaborator}
+        existing={editingCollaborator}
+        allCollaborators={collaborators}
+      />
+      <RealisationModal
+        isOpen={isRealisationModalOpen}
+        onClose={() => setIsRealisationModalOpen(false)}
+        onSave={handleSaveRealisation}
+        objectives={objectives}
+        currentUser={currentUser}
+        collaborators={collaborators}
+      />
+      <PrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        collaborators={collaborators}
+        objectives={objectives}
+        realisations={realisations}
+        currentUser={currentUser}
+      />
     </div>
   );
 }
