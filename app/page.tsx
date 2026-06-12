@@ -404,15 +404,29 @@ export default function FullyLoadedPremiumDashboard() {
     if (isAuthenticated && currentUser) loadData(currentUser);
   }, [currentUser, isAuthenticated]);
 
-  const handleUpdateProgress = (id: string, currentProgress: number, currentTitle: string, increment: number) => {
-    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
-    const newStatus = computeStatus(newProgress);
+  const handleUpdateProgress = async (id: string, currentProgress: number, currentTitle: string, increment: number) => {
+  const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
+  const newStatus = computeStatus(newProgress);
+  try {
+    await supabase.from('objectives').update({
+      progress_percentage: newProgress,
+      status: newStatus,
+    }).eq('id', id);
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
+      date: todayISO(),
+      type: 'update',
+    });
     setObjectives((prev) => {
       const updated = prev.map((o) => o.id === id ? { ...o, progress_percentage: newProgress, status: newStatus } : o);
       calculateMetrics(updated);
       return updated;
     });
-  };
+  } catch (err) {
+    console.error('Erreur update progress:', err);
+  }
+};
 
   const handleUpdateProgressDirect = (id: string, newProgress: number) => {
     const newStatus = computeStatus(newProgress);
