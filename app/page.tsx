@@ -164,6 +164,12 @@ const computeStatus = (progress: number): string => {
   if (progress < 40) return 'En retard';
   return 'En cours';
 };
+const createRecordId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 // ============================================================
 // ÉCRAN DE CONNEXION
@@ -1299,7 +1305,7 @@ function CollaboratorModal({
           <button
             onClick={() => {
               if (!form.first_name || !form.last_name || !form.role) return;
-              onSave({ ...form, id: existing?.id || `u${Date.now()}` });
+              onSave({ ...form, id: existing?.id || createRecordId() });
               onClose();
             }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center"
@@ -1465,7 +1471,7 @@ function ObjectiveModal({
           <button
             onClick={() => {
               if (!form.title.trim()) return;
-              onSave({ ...form, id: existing?.id || Date.now().toString() });
+              onSave({ ...form, id: existing?.id || createRecordId() });
               onClose();
             }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center"
@@ -1585,7 +1591,7 @@ function RealisationModal({
           <button
             onClick={() => {
               if (!form.objective_id || !form.description.trim()) return;
-              onSave({ ...form, id: `r${Date.now()}`, user_id: currentUser.collaborator_id, validated_by: null });
+              onSave({ ...form, id: createRecordId(), user_id: currentUser.collaborator_id, validated_by: null });
               onClose();
             }}
             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 justify-center"
@@ -1795,50 +1801,52 @@ export default function FullyLoadedPremiumDashboard() {
     });
   };
 
+  const apiRequest = async <T,>(action: string, table: string, data?: unknown, id?: string): Promise<T> => {
+    const response = await fetch('/api/dashboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, table, data, id }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Erreur API');
+    }
+
+    return payload.data as T;
+  };
+
   const loadData = async (user: AuthAccount | null = currentUser) => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: collabData } = await supabase
-        .from('collaborators')
-        .select('*')
-        .order('created_at', { ascending: true });
+      const response = await fetch('/api/dashboard', { cache: 'no-store' });
+      const payload = await response.json();
 
-      const objQuery = supabase
-        .from('objectives')
-        .select('*')
-        .order('created_at', { ascending: false });
-      const { data: objData } = user.orgId !== 'Tous'
-        ? await objQuery.eq('organization_id', user.orgId)
-        : await objQuery;
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erreur de chargement');
+      }
 
-      const { data: actData } = await supabase
-        .from('activities')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
+      const collabs = (payload.collaborators ?? []) as Collaborator[];
+      const allObjectives = (payload.objectives ?? []) as Objective[];
+      const allActivities = (payload.activities ?? []) as Activity[];
+      const allRealisations = (payload.realisations ?? []) as Realisation[];
+      const allRemarques = (payload.remarques ?? []) as Remarque[];
 
-      const realQuery = supabase
-        .from('realisations')
-        .select('*')
-        .order('date', { ascending: false });
-      const { data: realData } = user.orgId !== 'Tous'
-        ? await realQuery.eq('user_id', user.collaborator_id)
-        : await realQuery;
+      const visibleObjectives = user.orgId === 'Tous'
+        ? allObjectives
+        : allObjectives.filter((o) => o.organization_id === user.orgId);
 
-      const { data: remData } = await supabase
-        .from('remarques')
-        .select('*')
-        .order('date', { ascending: false });
+      const visibleRealisations = user.orgId === 'Tous'
+        ? allRealisations
+        : allRealisations.filter((r) => r.user_id === user.collaborator_id);
 
-      const collabs = (collabData ?? []) as Collaborator[];
-      const objs = (objData ?? []) as Objective[];
       setCollaborators(collabs);
-      setObjectives(objs);
-      setActivities((actData ?? []) as Activity[]);
-      setRealisations((realData ?? []) as Realisation[]);
-      setRemarques((remData ?? []) as Remarque[]);
-      calculateMetrics(objs);
+      setObjectives(visibleObjectives);
+      setActivities(allActivities);
+      setRealisations(visibleRealisations);
+      setRemarques(allRemarques);
+      calculateMetrics(visibleObjectives);
     } catch (err) {
       console.error('Erreur loadData:', err);
     } finally {
@@ -1854,21 +1862,17 @@ export default function FullyLoadedPremiumDashboard() {
   const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
   const newStatus = computeStatus(newProgress);
   try {
-    await supabase.from('objectives').update({
+    await apiRequest('update', 'objectives', {
       progress_percentage: newProgress,
       status: newStatus,
-    }).eq('id', id);
-    await supabase.from('activities').insert({
+    }, id);
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
       description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
       date: todayISO(),
       type: 'update',
     });
-    setObjectives((prev) => {
-      const updated = prev.map((o) => o.id === id ? { ...o, progress_percentage: newProgress, status: newStatus } : o);
-      calculateMetrics(updated);
-      return updated;
-    });
+    await loadData(currentUser);
   } catch (err) {
     console.error('Erreur update progress:', err);
   }
@@ -1887,7 +1891,7 @@ export default function FullyLoadedPremiumDashboard() {
   const isEdit = objectives.find((o) => o.id === formData.id);
   try {
     if (isEdit) {
-      await supabase.from('objectives').update({
+      await apiRequest('update', 'objectives', {
         title: formData.title,
         structure_type: formData.structure_type,
         category: formData.category,
@@ -1897,9 +1901,10 @@ export default function FullyLoadedPremiumDashboard() {
         progress_percentage: formData.progress_percentage,
         organization_id: formData.organization_id,
         assigned_to: formData.assigned_to || null,
-      }).eq('id', formData.id);
+      }, formData.id);
     } else {
-      await supabase.from('objectives').insert({
+      await apiRequest('insert', 'objectives', {
+        id: formData.id,
         title: formData.title,
         structure_type: formData.structure_type,
         category: formData.category,
@@ -1912,7 +1917,7 @@ export default function FullyLoadedPremiumDashboard() {
       });
     }
     // Log activité
-    await supabase.from('activities').insert({
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
       description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
       date: todayISO(),
@@ -1928,8 +1933,8 @@ export default function FullyLoadedPremiumDashboard() {
   const handleDeleteObjective = async (id: string) => {
   const obj = objectives.find((o) => o.id === id);
   try {
-    await supabase.from('objectives').delete().eq('id', id);
-    await supabase.from('activities').insert({
+    await apiRequest('delete', 'objectives', undefined, id);
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
       description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
       date: todayISO(),
@@ -1945,7 +1950,7 @@ export default function FullyLoadedPremiumDashboard() {
   const isEdit = collaborators.find((c) => c.id === formData.id);
   try {
     if (isEdit) {
-      await supabase.from('collaborators').update({
+      await apiRequest('update', 'collaborators', {
         first_name: formData.first_name,
         last_name: formData.last_name,
         avatar_emoji: formData.avatar_emoji,
@@ -1955,9 +1960,10 @@ export default function FullyLoadedPremiumDashboard() {
         organization_id: formData.organization_id,
         senior_id: formData.senior_id || null,
         email: formData.email,
-      }).eq('id', formData.id);
+      }, formData.id);
     } else {
-      await supabase.from('collaborators').insert({
+      const insertPayload = {
+        id: formData.id,
         first_name: formData.first_name,
         last_name: formData.last_name,
         avatar_emoji: formData.avatar_emoji,
@@ -1967,13 +1973,27 @@ export default function FullyLoadedPremiumDashboard() {
         organization_id: formData.organization_id,
         senior_id: formData.senior_id || null,
         email: formData.email,
+      };
+      const insertedCollaborator = await apiRequest<Collaborator>('insert', 'collaborators', insertPayload);
+      setCollaborators((prev) => {
+        const next = prev.some((c) => c.id === insertedCollaborator.id)
+          ? prev.map((c) => (c.id === insertedCollaborator.id ? insertedCollaborator : c))
+          : [insertedCollaborator, ...prev];
+        return next;
       });
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
+        date: todayISO(),
+        type: 'creation',
+      });
+      return;
     }
-    await supabase.from('activities').insert({
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a créé'} le collaborateur ${formData.first_name} ${formData.last_name}`,
+      description: `${currentUser?.name} a modifié le collaborateur ${formData.first_name} ${formData.last_name}`,
       date: todayISO(),
-      type: isEdit ? 'update' : 'creation',
+      type: 'update',
     });
     await loadData(currentUser);
   } catch (err) {
@@ -1985,8 +2005,8 @@ export default function FullyLoadedPremiumDashboard() {
   const handleDeleteCollaborator = async (id: string) => {
   const collab = collaborators.find((c) => c.id === id);
   try {
-    await supabase.from('collaborators').delete().eq('id', id);
-    await supabase.from('activities').insert({
+    await apiRequest('delete', 'collaborators', undefined, id);
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
       description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
       date: todayISO(),
@@ -2000,7 +2020,8 @@ export default function FullyLoadedPremiumDashboard() {
 
   const handleSaveRealisation = async (formData: Realisation) => {
   try {
-    await supabase.from('realisations').insert({
+    await apiRequest('insert', 'realisations', {
+      id: formData.id,
       user_id: currentUser?.collaborator_id || null,
       objective_id: formData.objective_id,
       description: formData.description,
@@ -2011,13 +2032,13 @@ export default function FullyLoadedPremiumDashboard() {
     });
     // Met à jour la progression de l'objectif
     if (formData.objective_id && formData.progress_after !== undefined) {
-      await supabase.from('objectives').update({
+      await apiRequest('update', 'objectives', {
         progress_percentage: formData.progress_after,
         status: computeStatus(formData.progress_after),
-      }).eq('id', formData.objective_id);
+      }, formData.objective_id);
     }
     const obj = objectives.find((o) => o.id === formData.objective_id);
-    await supabase.from('activities').insert({
+    await apiRequest('insert', 'activities', {
       user_id: currentUser?.collaborator_id || null,
       description: `${currentUser?.name} a enregistré une réalisation sur "${obj?.title || 'un dossier'}"`,
       date: todayISO(),
