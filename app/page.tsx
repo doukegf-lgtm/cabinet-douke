@@ -423,42 +423,151 @@ export default function FullyLoadedPremiumDashboard() {
     });
   };
 
-  const handleSaveObjective = (formData: Objective) => {
-    const isEdit = objectives.find((o) => o.id === formData.id);
-    setObjectives((prev) => {
-      const updated = isEdit
-        ? prev.map((o) => o.id === formData.id ? formData : o)
-        : [formData, ...prev];
-      calculateMetrics(updated);
-      return updated;
-    });
-    setEditingObjective(null);
-  };
-
-  const handleDeleteObjective = (id: string) => {
-    setObjectives((prev) => {
-      const updated = prev.filter((o) => o.id !== id);
-      calculateMetrics(updated);
-      return updated;
-    });
-  };
-
-  const handleSaveCollaborator = (formData: Collaborator) => {
-    const isEdit = collaborators.find((c) => c.id === formData.id);
-    setCollaborators((prev) => isEdit ? prev.map((c) => c.id === formData.id ? formData : c) : [...prev, formData]);
-    setEditingCollaborator(null);
-  };
-
-  const handleDeleteCollaborator = (id: string) => {
-    setCollaborators((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  const handleSaveRealisation = (formData: Realisation) => {
-    setRealisations((prev) => [formData, ...prev]);
-    if (formData.objective_id && formData.progress_after !== undefined) {
-      handleUpdateProgressDirect(formData.objective_id, formData.progress_after);
+  const handleSaveObjective = async (formData: Objective) => {
+  const isEdit = objectives.find((o) => o.id === formData.id);
+  try {
+    if (isEdit) {
+      await supabase.from('objectives').update({
+        title: formData.title,
+        structure_type: formData.structure_type,
+        category: formData.category,
+        status: formData.status,
+        priority: formData.priority,
+        deadline: formData.deadline,
+        progress_percentage: formData.progress_percentage,
+        organization_id: formData.organization_id,
+        assigned_to: formData.assigned_to || null,
+      }).eq('id', formData.id);
+    } else {
+      await supabase.from('objectives').insert({
+        title: formData.title,
+        structure_type: formData.structure_type,
+        category: formData.category,
+        status: formData.status,
+        priority: formData.priority,
+        deadline: formData.deadline,
+        progress_percentage: formData.progress_percentage,
+        organization_id: formData.organization_id,
+        assigned_to: formData.assigned_to || null,
+      });
     }
-  };
+    // Log activité
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
+      date: todayISO(),
+      type: isEdit ? 'update' : 'creation',
+    });
+    await loadData(currentUser);
+  } catch (err) {
+    console.error('Erreur save objective:', err);
+  }
+  setEditingObjective(null);
+};
+
+  const handleDeleteObjective = async (id: string) => {
+  const obj = objectives.find((o) => o.id === id);
+  try {
+    await supabase.from('objectives').delete().eq('id', id);
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
+      date: todayISO(),
+      type: 'deletion',
+    });
+    await loadData(currentUser);
+  } catch (err) {
+    console.error('Erreur delete objective:', err);
+  }
+};
+
+  const handleSaveCollaborator = async (formData: Collaborator) => {
+  const isEdit = collaborators.find((c) => c.id === formData.id);
+  try {
+    if (isEdit) {
+      await supabase.from('collaborators').update({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        avatar_emoji: formData.avatar_emoji,
+        role: formData.role,
+        profile: formData.profile,
+        performance: formData.performance,
+        organization_id: formData.organization_id,
+        senior_id: formData.senior_id || null,
+        email: formData.email,
+      }).eq('id', formData.id);
+    } else {
+      await supabase.from('collaborators').insert({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        avatar_emoji: formData.avatar_emoji,
+        role: formData.role,
+        profile: formData.profile,
+        performance: formData.performance,
+        organization_id: formData.organization_id,
+        senior_id: formData.senior_id || null,
+        email: formData.email,
+      });
+    }
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a créé'} le collaborateur ${formData.first_name} ${formData.last_name}`,
+      date: todayISO(),
+      type: isEdit ? 'update' : 'creation',
+    });
+    await loadData(currentUser);
+  } catch (err) {
+    console.error('Erreur save collaborator:', err);
+  }
+  setEditingCollaborator(null);
+};
+  
+  const handleDeleteCollaborator = async (id: string) => {
+  const collab = collaborators.find((c) => c.id === id);
+  try {
+    await supabase.from('collaborators').delete().eq('id', id);
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
+      date: todayISO(),
+      type: 'deletion',
+    });
+    await loadData(currentUser);
+  } catch (err) {
+    console.error('Erreur delete collaborator:', err);
+  }
+};
+
+  const handleSaveRealisation = async (formData: Realisation) => {
+  try {
+    await supabase.from('realisations').insert({
+      user_id: currentUser?.collaborator_id || null,
+      objective_id: formData.objective_id,
+      description: formData.description,
+      date: formData.date,
+      duration_hours: formData.duration_hours,
+      progress_after: formData.progress_after,
+      validated_by: null,
+    });
+    // Met à jour la progression de l'objectif
+    if (formData.objective_id && formData.progress_after !== undefined) {
+      await supabase.from('objectives').update({
+        progress_percentage: formData.progress_after,
+        status: computeStatus(formData.progress_after),
+      }).eq('id', formData.objective_id);
+    }
+    const obj = objectives.find((o) => o.id === formData.objective_id);
+    await supabase.from('activities').insert({
+      user_id: currentUser?.collaborator_id || null,
+      description: `${currentUser?.name} a enregistré une réalisation sur "${obj?.title || 'un dossier'}"`,
+      date: todayISO(),
+      type: 'realisation',
+    });
+    await loadData(currentUser);
+  } catch (err) {
+    console.error('Erreur save realisation:', err);
+  }
+};
 
   if (!isAuthenticated || !currentUser) return <LoginScreen onLogin={handleLogin} />;
 
