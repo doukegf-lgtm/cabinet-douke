@@ -3,13 +3,39 @@ import { createServerSupabaseClient, dashboardRead, dashboardWrite, forceSupabas
 
 const supabase = createServerSupabaseClient();
 
+// ============================================================
+// Extraction robuste du message d'erreur.
+// Les erreurs Supabase (PostgrestError) sont des objets simples
+// { message, details, hint, code } et NE SONT PAS des instances
+// de la classe Error native. `error instanceof Error` est donc
+// toujours `false` pour elles, ce qui masquait le vrai message.
+// ============================================================
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === 'object') {
+    const err = error as Record<string, unknown>;
+    const parts = [err.message, err.details, err.hint, err.code]
+      .filter((v) => typeof v === 'string' && v.length > 0);
+    if (parts.length > 0) {
+      return parts.join(' | ');
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // ignore stringify failure
+    }
+  }
+  return 'Erreur serveur inconnue';
+}
+
 export async function GET() {
   try {
     await forceSupabaseConnection(supabase);
     return NextResponse.json(await dashboardRead(supabase));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erreur serveur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -36,7 +62,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erreur serveur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: extractErrorMessage(error) }, { status: 500 });
   }
 }
