@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserSupabaseClient } from './supabaseClient';
 import {
   LayoutDashboard, ClipboardList, Calendar, Users, ShieldCheck,
   Plus, RefreshCw, X, AlertCircle, CheckCircle2, UserCheck, Lock,
@@ -14,10 +14,7 @@ import {
 // ============================================================
 // SUPABASE CLIENT
 // ============================================================
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createBrowserSupabaseClient();
 
 // ============================================================
 // TYPES
@@ -2233,10 +2230,48 @@ export default function FullyLoadedPremiumDashboard() {
         />
       )}
       {currentView === 'Planification' && (
-        <div className="bg-white rounded-2xl border p-12 shadow-sm text-center max-w-xl mx-auto my-12">
-          <div className="text-4xl mb-4">📅</div>
-          <h4 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planificateur de Livrables</h4>
-          <p className="text-xs text-slate-500 mt-2 leading-relaxed">Module en cours de développement.</p>
+        <div className="space-y-5">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planification des dossiers</h3>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Vue simple des échéances à venir, triée par date cible.</p>
+            </div>
+            <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">{objectives.length} dossier(s)</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {objectives
+              .slice()
+              .sort((a, b) => a.deadline.localeCompare(b.deadline))
+              .map((obj) => {
+                const daysLeft = Math.ceil((new Date(obj.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={obj.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 text-sm truncate">{obj.title}</p>
+                        <p className="text-[10px] text-slate-400 font-bold mt-1">Échéance : {formatDate(obj.deadline)}</p>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${daysLeft <= 0 ? 'bg-rose-50 text-rose-700 border-rose-100' : daysLeft <= 7 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                        {daysLeft <= 0 ? 'À traiter' : `J-${daysLeft}`}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <span>Structure</span>
+                        <span>Statut</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                        <span>{obj.structure_type}</span>
+                        <span>{obj.status}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-3">
+                        <div className="bg-gradient-to-r from-blue-500 to-emerald-500 h-full" style={{ width: `${obj.progress_percentage}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
       {currentView === 'Équipe' && (
