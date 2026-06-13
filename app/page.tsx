@@ -161,6 +161,7 @@ const computeStatus = (progress: number): string => {
   if (progress < 40) return 'En retard';
   return 'En cours';
 };
+
 const createRecordId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -218,6 +219,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
       setAttempts(0);
       onLogin(account);
     } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
       console.error(err);
       setError('Erreur de connexion. Vérifiez votre réseau.');
       setLoading(false);
@@ -789,14 +791,19 @@ function JuniorDashboard({
   );
 }
 
+// ============================================================
+// MODIFICATION #2 — RealisationsView
+// Ajouts : prop onEdit, colonne Actions dans thead, bouton Modifier par ligne
+// ============================================================
 function RealisationsView({
-  realisations, objectives, collaborators, currentUser, onAdd,
+  realisations, objectives, collaborators, currentUser, onAdd, onEdit,
 }: {
   realisations: Realisation[];
   objectives: Objective[];
   collaborators: Collaborator[];
   currentUser: AuthAccount;
   onAdd: () => void;
+  onEdit: (r: Realisation) => void; // ← NOUVEAU
 }) {
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
   const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
@@ -821,6 +828,9 @@ function RealisationsView({
         <button onClick={onAdd} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2">
           <PenLine size={16} /> Saisir une réalisation
         </button>
+
+
+    
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -834,10 +844,18 @@ function RealisationsView({
                 <th className="p-4 font-black text-center">Durée</th>
                 <th className="p-4 font-black text-center">Avancement</th>
                 <th className="p-4 font-black text-center">Validation</th>
+                {/* ← NOUVEAU : colonne Actions */}
+                <th className="p-4 font-black text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {displayReal.length === 0 && <tr><td colSpan={7} className="p-10 text-center text-slate-400 italic text-xs">Aucune réalisation pour votre scope.</td></tr>}
+              {displayReal.length === 0 && (
+                <tr>
+                  <td colSpan={isJuniorOrSecretary ? 7 : 8} className="p-10 text-center text-slate-400 italic text-xs">
+                    Aucune réalisation pour votre scope.
+                  </td>
+                </tr>
+              )}
               {displayReal.map((r, i) => {
                 const collab = collaborators.find((c) => c.id === r.user_id);
                 const obj = objectives.find((o) => o.id === r.objective_id);
@@ -865,13 +883,24 @@ function RealisationsView({
                     </td>
                     <td className="p-4 text-slate-700 font-medium max-w-sm">{r.description}</td>
                     <td className="p-4 text-center font-black text-slate-700">{r.duration_hours}h</td>
-                    <td className="p-4 text-center"><span className="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{r.progress_after}%</span></td>
+                    <td className="p-4 text-center">
+                      <span className="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{r.progress_after}%</span>
+                    </td>
                     <td className="p-4 text-center">
                       {r.validated_by ? (
                         <span className="text-[9px] font-black bg-emerald-50 border border-emerald-100 text-emerald-600 px-2 py-0.5 rounded uppercase">✓ Validé</span>
                       ) : (
                         <span className="text-[9px] font-black bg-slate-50 border border-slate-200 text-slate-400 px-2 py-0.5 rounded uppercase">En attente</span>
                       )}
+                    </td>
+                    {/* ← NOUVEAU : cellule bouton Modifier */}
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => onEdit(r)}
+                        className="bg-amber-50 hover:bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg border border-amber-100 font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 ml-auto"
+                      >
+                        <Edit3 size={11} /> Modifier
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1481,8 +1510,12 @@ function ObjectiveModal({
   );
 }
 
+// ============================================================
+// MODIFICATION #1 — RealisationModal
+// Ajouts : prop existing, useEffect pré-remplissage, titre conditionnel
+// ============================================================
 function RealisationModal({
-  isOpen, onClose, onSave, objectives, currentUser, collaborators,
+  isOpen, onClose, onSave, objectives, currentUser, collaborators, existing,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -1490,14 +1523,42 @@ function RealisationModal({
   objectives: Objective[];
   currentUser: AuthAccount;
   collaborators: Collaborator[];
+  existing: Realisation | null; // ← NOUVEAU
 }) {
-  const defaultForm = { objective_id: '', description: '', date: todayISO(), duration_hours: 1, progress_after: 0 };
-  const [form, setForm] = useState(defaultForm);
+  const buildDefault = () => ({
+    objective_id: '',
+    description: '',
+    date: todayISO(),
+    duration_hours: 1,
+    progress_after: 0,
+  });
+
+  const [form, setForm] = useState(buildDefault());
   const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
 
+  // ← NOUVEAU : pré-remplissage si existing, reset sinon
   useEffect(() => {
-    if (!isOpen) { setForm(defaultForm); setSelectedObj(null); }
-  }, [isOpen]);
+    if (!isOpen) {
+      setForm(buildDefault());
+      setSelectedObj(null);
+      return;
+    }
+    if (existing) {
+      setForm({
+        objective_id: existing.objective_id,
+        description: existing.description,
+        date: existing.date,
+        duration_hours: existing.duration_hours,
+        progress_after: existing.progress_after,
+      });
+      // Retrouver l'objectif lié pour afficher son contexte
+      const linkedObj = objectives.find((o) => o.id === existing.objective_id) ?? null;
+      setSelectedObj(linkedObj);
+    } else {
+      setForm(buildDefault());
+      setSelectedObj(null);
+    }
+  }, [isOpen, existing]);
 
   if (!isOpen) return null;
 
@@ -1517,10 +1578,19 @@ function RealisationModal({
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={18} /></button>
         <div className="flex items-center gap-3 mb-5">
-          <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100"><PenLine size={18} className="text-emerald-600" /></div>
+          {/* ← NOUVEAU : icône et titre conditionnels selon existing */}
+          <div className={`p-2.5 rounded-xl border ${existing ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
+            {existing ? <Edit3 size={18} className="text-amber-600" /> : <PenLine size={18} className="text-emerald-600" />}
+          </div>
           <div>
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Saisir une réalisation</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Journalisez une action concrète effectuée sur un dossier</p>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+              {existing ? 'Modifier la réalisation' : 'Saisir une réalisation'}
+            </h3>
+            <p className="text-[10px] text-slate-400 font-medium">
+              {existing
+                ? 'Corrigez les informations de cette réalisation'
+                : 'Journalisez une action concrète effectuée sur un dossier'}
+            </p>
           </div>
         </div>
         <div className="space-y-4">
@@ -1585,15 +1655,27 @@ function RealisationModal({
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
+          {/* ← NOUVEAU : bouton conditionnel Enregistrer / Modifier */}
           <button
             onClick={() => {
               if (!form.objective_id || !form.description.trim()) return;
-              onSave({ ...form, id: createRecordId(), user_id: currentUser.collaborator_id, validated_by: null });
+              onSave({
+                // En mode édition : préserver l'id et user_id existants
+                // En mode création : générer un nouvel id
+                id: existing?.id ?? createRecordId(),
+                user_id: existing?.user_id ?? currentUser.collaborator_id,
+                validated_by: existing?.validated_by ?? null,
+                ...form,
+              });
               onClose();
             }}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 justify-center"
+            className={`flex-1 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 justify-center ${
+              existing
+                ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
+            }`}
           >
-            <CheckSquare size={14} /> Enregistrer la réalisation
+            {existing ? <><Edit3 size={14} /> Enregistrer les modifications</> : <><CheckSquare size={14} /> Enregistrer la réalisation</>}
           </button>
         </div>
       </div>
@@ -1744,6 +1826,7 @@ export default function FullyLoadedPremiumDashboard() {
   const [currentStructure, setCurrentStructure] = useState('Tous');
   const [loading, setLoading] = useState(false);
 
+  const [globalError, setGlobalError] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -1756,6 +1839,8 @@ export default function FullyLoadedPremiumDashboard() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState<Objective | null>(null);
   const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
+  // ← NOUVEAU : état pour la réalisation en cours d'édition
+  const [editingRealisation, setEditingRealisation] = useState<Realisation | null>(null);
 
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1764,21 +1849,6 @@ export default function FullyLoadedPremiumDashboard() {
     totalObjectives: 0, globalProgress: 0, lateTasks: 0,
     pendingTasks: 0, conacceProgress: 0, doukeProgress: 0,
   });
-
-  const handleLogin = (account: AuthAccount) => {
-    setCurrentUser(account);
-    setIsAuthenticated(true);
-    setCurrentStructure(account.orgId !== 'Tous' ? account.orgId : 'Tous');
-  };
-
-  const handleLogout = () => {
-    if (window.confirm('Confirmer la déconnexion sécurisée ?')) {
-      setIsAuthenticated(false);
-      setCurrentUser(null);
-      setCurrentView('Tableau de bord');
-    }
-  };
-
   const calculateMetrics = (targetObjectives: Objective[]) => {
     const total = targetObjectives.length;
     const avg = total > 0
@@ -1796,6 +1866,45 @@ export default function FullyLoadedPremiumDashboard() {
       doukeProgress: doukeObjs.length > 0
         ? Math.round(doukeObjs.reduce((a, o) => a + o.progress_percentage, 0) / doukeObjs.length) : 0,
     });
+  };
+
+  const loadDataWithUser = async (user: AuthAccount) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/dashboard', { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || 'Erreur de chargement');
+      const collabs = (payload.collaborators ?? []) as Collaborator[];
+      const allObjectives = (payload.objectives ?? []) as Objective[];
+      const allActivities = (payload.activities ?? []) as Activity[];
+      const allRealisations = (payload.realisations ?? []) as Realisation[];
+      const allRemarques = (payload.remarques ?? []) as Remarque[];
+      setCollaborators(collabs);
+      setObjectives(allObjectives);
+      setActivities(allActivities);
+      setRealisations(allRealisations);
+      setRemarques(allRemarques);
+      calculateMetrics(allObjectives);
+    } catch (err) {
+      console.error('Erreur loadData:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = (account: AuthAccount) => {
+    setCurrentUser(account);
+    setIsAuthenticated(true);
+    setCurrentStructure('Tous');
+    loadDataWithUser(account);
+  };
+
+  const handleLogout = () => {
+    if (window.confirm('Confirmer la déconnexion sécurisée ?')) {
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setCurrentView('Tableau de bord');
+    }
   };
 
   const apiRequest = async <T,>(action: string, table: string, data?: unknown, id?: string): Promise<T> => {
@@ -1830,13 +1939,8 @@ export default function FullyLoadedPremiumDashboard() {
       const allRealisations = (payload.realisations ?? []) as Realisation[];
       const allRemarques = (payload.remarques ?? []) as Remarque[];
 
-      const visibleObjectives = user.orgId === 'Tous'
-        ? allObjectives
-        : allObjectives.filter((o) => o.organization_id === user.orgId);
-
-      const visibleRealisations = user.orgId === 'Tous'
-        ? allRealisations
-        : allRealisations.filter((r) => r.user_id === user.collaborator_id);
+       const visibleObjectives = allObjectives;
+       const visibleRealisations = allRealisations; 
 
       setCollaborators(collabs);
       setObjectives(visibleObjectives);
@@ -1845,35 +1949,39 @@ export default function FullyLoadedPremiumDashboard() {
       setRemarques(allRemarques);
       calculateMetrics(visibleObjectives);
     } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
       console.error('Erreur loadData:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (isAuthenticated && currentUser) loadData(currentUser);
-  }, [currentUser, isAuthenticated]);
+ useEffect(() => {
+  if (isAuthenticated && currentUser) {
+    loadDataWithUser(currentUser);
+  }
+}, [isAuthenticated]);
 
   const handleUpdateProgress = async (id: string, currentProgress: number, currentTitle: string, increment: number) => {
-  const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
-  const newStatus = computeStatus(newProgress);
-  try {
-    await apiRequest('update', 'objectives', {
-      progress_percentage: newProgress,
-      status: newStatus,
-    }, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
-      date: todayISO(),
-      type: 'update',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur update progress:', err);
-  }
-};
+    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
+    const newStatus = computeStatus(newProgress);
+    try {
+      await apiRequest('update', 'objectives', {
+        progress_percentage: newProgress,
+        status: newStatus,
+      }, id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
+        date: todayISO(),
+        type: 'update',
+      });
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur update progress:', err);
+    }
+  };
 
   const handleUpdateProgressDirect = (id: string, newProgress: number) => {
     const newStatus = computeStatus(newProgress);
@@ -1885,171 +1993,194 @@ export default function FullyLoadedPremiumDashboard() {
   };
 
   const handleSaveObjective = async (formData: Objective) => {
-  const isEdit = objectives.find((o) => o.id === formData.id);
-  try {
-    if (isEdit) {
-      await apiRequest('update', 'objectives', {
-        title: formData.title,
-        structure_type: formData.structure_type,
-        category: formData.category,
-        status: formData.status,
-        priority: formData.priority,
-        deadline: formData.deadline,
-        progress_percentage: formData.progress_percentage,
-        organization_id: formData.organization_id,
-        assigned_to: formData.assigned_to || null,
-      }, formData.id);
-    } else {
-      await apiRequest('insert', 'objectives', {
-        id: formData.id,
-        title: formData.title,
-        structure_type: formData.structure_type,
-        category: formData.category,
-        status: formData.status,
-        priority: formData.priority,
-        deadline: formData.deadline,
-        progress_percentage: formData.progress_percentage,
-        organization_id: formData.organization_id,
-        assigned_to: formData.assigned_to || null,
-      });
-    }
-    // Log activité
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
-      date: todayISO(),
-      type: isEdit ? 'update' : 'creation',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur save objective:', err);
-  }
-  setEditingObjective(null);
-};
-
-  const handleDeleteObjective = async (id: string) => {
-  const obj = objectives.find((o) => o.id === id);
-  try {
-    await apiRequest('delete', 'objectives', undefined, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
-      date: todayISO(),
-      type: 'deletion',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur delete objective:', err);
-  }
-};
-
-  const handleSaveCollaborator = async (formData: Collaborator) => {
-  const isEdit = collaborators.find((c) => c.id === formData.id);
-  try {
-    if (isEdit) {
-      await apiRequest('update', 'collaborators', {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        avatar_emoji: formData.avatar_emoji,
-        role: formData.role,
-        profile: formData.profile,
-        performance: formData.performance,
-        organization_id: formData.organization_id,
-        senior_id: formData.senior_id || null,
-        email: formData.email,
-      }, formData.id);
-    } else {
-      const insertPayload = {
-        id: formData.id,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        avatar_emoji: formData.avatar_emoji,
-        role: formData.role,
-        profile: formData.profile,
-        performance: formData.performance,
-        organization_id: formData.organization_id,
-        senior_id: formData.senior_id || null,
-        email: formData.email,
-      };
-      const insertedCollaborator = await apiRequest<Collaborator>('insert', 'collaborators', insertPayload);
-      setCollaborators((prev) => {
-        const next = prev.some((c) => c.id === insertedCollaborator.id)
-          ? prev.map((c) => (c.id === insertedCollaborator.id ? insertedCollaborator : c))
-          : [insertedCollaborator, ...prev];
-        return next;
-      });
+    const isEdit = objectives.find((o) => o.id === formData.id);
+    try {
+      if (isEdit) {
+        await apiRequest('update', 'objectives', {
+          title: formData.title,
+          structure_type: formData.structure_type,
+          category: formData.category,
+          status: formData.status,
+          priority: formData.priority,
+          deadline: formData.deadline,
+          progress_percentage: formData.progress_percentage,
+          organization_id: formData.organization_id,
+          assigned_to: formData.assigned_to || null,
+        }, formData.id);
+      } else {
+        await apiRequest('insert', 'objectives', {
+          id: formData.id,
+          title: formData.title,
+          structure_type: formData.structure_type,
+          category: formData.category,
+          status: formData.status,
+          priority: formData.priority,
+          deadline: formData.deadline,
+          progress_percentage: formData.progress_percentage,
+          organization_id: formData.organization_id,
+          assigned_to: formData.assigned_to || null,
+        });
+      }
       await apiRequest('insert', 'activities', {
         user_id: currentUser?.collaborator_id || null,
-        description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
+        description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
         date: todayISO(),
-        type: 'creation',
+        type: isEdit ? 'update' : 'creation',
       });
-      return;
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur save objective:', err);
     }
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a modifié le collaborateur ${formData.first_name} ${formData.last_name}`,
-      date: todayISO(),
-      type: 'update',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur save collaborator:', err);
-  }
-  setEditingCollaborator(null);
-};
-  
-  const handleDeleteCollaborator = async (id: string) => {
-  const collab = collaborators.find((c) => c.id === id);
-  try {
-    await apiRequest('delete', 'collaborators', undefined, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
-      date: todayISO(),
-      type: 'deletion',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur delete collaborator:', err);
-  }
-};
+    setEditingObjective(null);
+  };
 
-  const handleSaveRealisation = async (formData: Realisation) => {
-  try {
-    await apiRequest('insert', 'realisations', {
-      id: formData.id,
-      user_id: currentUser?.collaborator_id || null,
-      objective_id: formData.objective_id,
-      description: formData.description,
-      date: formData.date,
-      duration_hours: formData.duration_hours,
-      progress_after: formData.progress_after,
-      validated_by: null,
-    });
-    // Met à jour la progression de l'objectif
-    if (formData.objective_id && formData.progress_after !== undefined) {
-      await apiRequest('update', 'objectives', {
-        progress_percentage: formData.progress_after,
-        status: computeStatus(formData.progress_after),
-      }, formData.objective_id);
+  const handleDeleteObjective = async (id: string) => {
+    const obj = objectives.find((o) => o.id === id);
+    try {
+      await apiRequest('delete', 'objectives', undefined, id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
+        date: todayISO(),
+        type: 'deletion',
+      });
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur delete objective:', err);
     }
-    const obj = objectives.find((o) => o.id === formData.objective_id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a enregistré une réalisation sur "${obj?.title || 'un dossier'}"`,
-      date: todayISO(),
-      type: 'realisation',
-    });
-    await loadData(currentUser);
-  } catch (err) {
-    console.error('Erreur save realisation:', err);
-  }
-};
+  };
+
+  const handleSaveCollaborator = async (formData: Collaborator) => {
+    const isEdit = collaborators.find((c) => c.id === formData.id);
+    try {
+      if (isEdit) {
+        await apiRequest('update', 'collaborators', {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          avatar_emoji: formData.avatar_emoji,
+          role: formData.role,
+          profile: formData.profile,
+          performance: formData.performance,
+          organization_id: formData.organization_id,
+          senior_id: formData.senior_id || null,
+          email: formData.email,
+        }, formData.id);
+      } else {
+        const insertPayload = {
+          id: formData.id,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          avatar_emoji: formData.avatar_emoji,
+          role: formData.role,
+          profile: formData.profile,
+          performance: formData.performance,
+          organization_id: formData.organization_id,
+          senior_id: formData.senior_id || null,
+          email: formData.email,
+        };
+        const insertedCollaborator = await apiRequest<Collaborator>('insert', 'collaborators', insertPayload);
+        setCollaborators((prev) => {
+          const next = prev.some((c) => c.id === insertedCollaborator.id)
+            ? prev.map((c) => (c.id === insertedCollaborator.id ? insertedCollaborator : c))
+            : [insertedCollaborator, ...prev];
+          return next;
+        });
+        await apiRequest('insert', 'activities', {
+          user_id: currentUser?.collaborator_id || null,
+          description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
+          date: todayISO(),
+          type: 'creation',
+        });
+        return;
+      }
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a modifié le collaborateur ${formData.first_name} ${formData.last_name}`,
+        date: todayISO(),
+        type: 'update',
+      });
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur save collaborator:', err);
+    }
+    setEditingCollaborator(null);
+  };
+
+  const handleDeleteCollaborator = async (id: string) => {
+    const collab = collaborators.find((c) => c.id === id);
+    try {
+      await apiRequest('delete', 'collaborators', undefined, id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
+        date: todayISO(),
+        type: 'deletion',
+      });
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur delete collaborator:', err);
+    }
+  };
+
+  // ← NOUVEAU : handleSaveRealisation gère création ET mise à jour
+  const handleSaveRealisation = async (formData: Realisation) => {
+    try {
+      const isEdit = realisations.find((r) => r.id === formData.id);
+      if (isEdit) {
+        // Mise à jour d'une réalisation existante
+        await apiRequest('update', 'realisations', {
+          objective_id: formData.objective_id,
+          description: formData.description,
+          date: formData.date,
+          duration_hours: formData.duration_hours,
+          progress_after: formData.progress_after,
+        }, formData.id);
+      } else {
+        // Création d'une nouvelle réalisation
+        await apiRequest('insert', 'realisations', {
+          id: formData.id,
+          user_id: formData.user_id,
+          objective_id: formData.objective_id,
+          description: formData.description,
+          date: formData.date,
+          duration_hours: formData.duration_hours,
+          progress_after: formData.progress_after,
+          validated_by: null,
+        });
+      }
+      // Mise à jour de la progression de l'objectif dans les deux cas
+      if (formData.objective_id && formData.progress_after !== undefined) {
+        await apiRequest('update', 'objectives', {
+          progress_percentage: formData.progress_after,
+          status: computeStatus(formData.progress_after),
+        }, formData.objective_id);
+      }
+      const obj = objectives.find((o) => o.id === formData.objective_id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a enregistré'} une réalisation sur "${obj?.title || 'un dossier'}"`,
+        date: todayISO(),
+        type: isEdit ? 'update' : 'realisation',
+      });
+      await loadData(currentUser);
+    } catch (err) {
+      const [globalError, setGlobalError] = useState<string | null>(null);
+      console.error('Erreur save realisation:', err);
+    }
+    // ← NOUVEAU : reset de l'état d'édition après sauvegarde
+    setEditingRealisation(null);
+  };
 
   if (!isAuthenticated || !currentUser) return <LoginScreen onLogin={handleLogin} />;
 
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
+  const planningObjectives = isJuniorOrSecretary
+    ? objectives.filter((o) => o.assigned_to === currentUser.collaborator_id)
+    : objectives;
   const isAdmin = currentUser.role === 'Super-Admin';
   const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
 
@@ -2057,7 +2188,7 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Tableau de bord', view: 'Tableau de bord', icon: <LayoutDashboard size={20} />, show: true },
     { label: 'Objectifs & Missions', view: 'Objectifs', icon: <ClipboardList size={20} />, show: true },
     { label: 'Réalisations', view: 'Réalisations', icon: <PenLine size={20} />, show: true },
-    { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: !isJuniorOrSecretary },
+    { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
   ].filter((n) => n.show);
 
@@ -2151,7 +2282,7 @@ export default function FullyLoadedPremiumDashboard() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsRealisationModalOpen(true)}
+            <button onClick={() => { setEditingRealisation(null); setIsRealisationModalOpen(true); }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm">
               <PenLine size={14} /> Saisir une réalisation
             </button>
@@ -2164,133 +2295,145 @@ export default function FullyLoadedPremiumDashboard() {
         </header>
 
         <div className="p-8 space-y-8">
-  {loading ? (
-    <div className="flex items-center justify-center h-64">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-        <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
-      </div>
-    </div>
-  ) : (
-    <>
-      {currentView === 'Tableau de bord' && isAdmin && (
-        <AdminDashboard
-          objectives={displayObjectives}
-          collaborators={collaborators}
-          activities={activities}
-          realisations={realisations}
-          stats={stats}
-          currentStructure={currentStructure}
-          setCurrentView={setCurrentView}
-          currentUser={currentUser}
-        />
-      )}
-      {currentView === 'Tableau de bord' && isSenior && (
-        <SeniorDashboard
-          objectives={objectives}
-          collaborators={collaborators}
-          realisations={realisations}
-          remarques={remarques}
-          stats={stats}
-          currentUser={currentUser}
-        />
-      )}
-      {currentView === 'Tableau de bord' && isJuniorOrSecretary && (
-        <JuniorDashboard
-          objectives={objectives}
-          collaborators={collaborators}
-          realisations={realisations}
-          remarques={remarques}
-          currentUser={currentUser}
-          onSaisirRealisation={() => setIsRealisationModalOpen(true)}
-        />
-      )}
-      {currentView === 'Objectifs' && (
-        <ObjectifsView
-          objectives={objectives}
-          collaborators={collaborators}
-          currentUser={currentUser}
-          onAddObjective={() => { setEditingObjective(null); setIsObjectiveModalOpen(true); }}
-          onEditObjective={(obj) => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
-          onDeleteObjective={handleDeleteObjective}
-          onUpdateProgress={handleUpdateProgress}
-          filterCategory={filterCategory}
-          setFilterCategory={setFilterCategory}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
-      )}
-      {currentView === 'Réalisations' && (
-        <RealisationsView
-          realisations={realisations}
-          objectives={objectives}
-          collaborators={collaborators}
-          currentUser={currentUser}
-          onAdd={() => setIsRealisationModalOpen(true)}
-        />
-      )}
-      {currentView === 'Planification' && (
-        <div className="space-y-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planification des dossiers</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Vue simple des échéances à venir, triée par date cible.</p>
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
+              </div>
             </div>
-            <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">{objectives.length} dossier(s)</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {objectives
-              .slice()
-              .sort((a, b) => a.deadline.localeCompare(b.deadline))
-              .map((obj) => {
-                const daysLeft = Math.ceil((new Date(obj.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                return (
-                  <div key={obj.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-900 text-sm truncate">{obj.title}</p>
-                        <p className="text-[10px] text-slate-400 font-bold mt-1">Échéance : {formatDate(obj.deadline)}</p>
-                      </div>
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${daysLeft <= 0 ? 'bg-rose-50 text-rose-700 border-rose-100' : daysLeft <= 7 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                        {daysLeft <= 0 ? 'À traiter' : `J-${daysLeft}`}
-                      </span>
+          ) : (
+            <>
+              {currentView === 'Tableau de bord' && isAdmin && (
+                <AdminDashboard
+                  objectives={displayObjectives}
+                  collaborators={collaborators}
+                  activities={activities}
+                  realisations={realisations}
+                  stats={stats}
+                  currentStructure={currentStructure}
+                  setCurrentView={setCurrentView}
+                  currentUser={currentUser}
+                />
+              )}
+              {currentView === 'Tableau de bord' && isSenior && (
+                <SeniorDashboard
+                  objectives={objectives}
+                  collaborators={collaborators}
+                  realisations={realisations}
+                  remarques={remarques}
+                  stats={stats}
+                  currentUser={currentUser}
+                />
+              )}
+              {currentView === 'Tableau de bord' && isJuniorOrSecretary && (
+                <JuniorDashboard
+                  objectives={objectives}
+                  collaborators={collaborators}
+                  realisations={realisations}
+                  remarques={remarques}
+                  currentUser={currentUser}
+                  onSaisirRealisation={() => { setEditingRealisation(null); setIsRealisationModalOpen(true); }}
+                />
+              )}
+              {currentView === 'Objectifs' && (
+                <ObjectifsView
+                  objectives={objectives}
+                  collaborators={collaborators}
+                  currentUser={currentUser}
+                  onAddObjective={() => { setEditingObjective(null); setIsObjectiveModalOpen(true); }}
+                  onEditObjective={(obj) => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
+                  onDeleteObjective={handleDeleteObjective}
+                  onUpdateProgress={handleUpdateProgress}
+                  filterCategory={filterCategory}
+                  setFilterCategory={setFilterCategory}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                />
+              )}
+              {currentView === 'Réalisations' && (
+                <RealisationsView
+                  realisations={realisations}
+                  objectives={objectives}
+                  collaborators={collaborators}
+                  currentUser={currentUser}
+                  onAdd={() => { setEditingRealisation(null); setIsRealisationModalOpen(true); }}
+                  // ← NOUVEAU : câblage onEdit → ouvre la modale en mode édition
+                  onEdit={(r) => { setEditingRealisation(r); setIsRealisationModalOpen(true); }}
+                />
+              )}
+              {currentView === 'Planification' && (
+                <div className="space-y-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planification des dossiers</h3>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">Vue simple des échéances à venir, triée par date cible.</p>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        <span>Structure</span>
-                        <span>Statut</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                        <span>{obj.structure_type}</span>
-                        <span>{obj.status}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-3">
-                        <div className="bg-gradient-to-r from-blue-500 to-emerald-500 h-full" style={{ width: `${obj.progress_percentage}%` }}></div>
-                      </div>
-                    </div>
+                    <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">{planningObjectives.length} dossier(s)</span>
                   </div>
-                );
-              })}
-          </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {planningObjectives
+                      .slice()
+                      .sort((a, b) => a.deadline.localeCompare(b.deadline))
+                      .map((obj) => {
+                        const daysLeft = Math.ceil((new Date(obj.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        return (
+                          <div key={obj.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                              <div className="min-w-0">
+                                <p className="font-black text-slate-900 text-sm truncate">{obj.title}</p>
+                                <p className="text-[10px] text-slate-400 font-bold mt-1">Échéance : {formatDate(obj.deadline)}</p>
+                              </div>
+                              <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${daysLeft <= 0 ? 'bg-rose-50 text-rose-700 border-rose-100' : daysLeft <= 7 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                                {daysLeft <= 0 ? 'À traiter' : `J-${daysLeft}`}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                <span>Structure</span>
+                                <span>Statut</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                                <span>{obj.structure_type}</span>
+                                <span>{obj.status}</span>
+                              </div>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-3">
+                                <div className="bg-gradient-to-r from-blue-500 to-emerald-500 h-full" style={{ width: `${obj.progress_percentage}%` }}></div>
+                              </div>
+                            </div>
+                            {/* ← NOUVEAU : bouton Modifier sur chaque carte de planification */}
+                            <div className="mt-4 pt-3 border-t border-slate-100">
+                              <button
+                                onClick={() => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
+                                className="w-full flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-600 py-2 rounded-xl border border-amber-100 font-black text-[10px] uppercase tracking-wider transition-all"
+                              >
+                                <Edit3 size={11} /> Modifier ce dossier
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+              {currentView === 'Équipe' && (
+                <EquipeView
+                  collaborators={collaborators}
+                  objectives={objectives}
+                  realisations={realisations}
+                  currentUser={currentUser}
+                  onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
+                  onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
+                  onDeleteCollaborator={handleDeleteCollaborator}
+                />
+              )}
+            </>
+          )}
         </div>
-      )}
-      {currentView === 'Équipe' && (
-        <EquipeView
-          collaborators={collaborators}
-          objectives={objectives}
-          realisations={realisations}
-          currentUser={currentUser}
-          onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
-          onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
-          onDeleteCollaborator={handleDeleteCollaborator}
-        />
-      )}
-    </>
-  )}
-</div>
 
+        {/* FAB buttons */}
         <div className="fixed bottom-8 right-8 flex flex-col gap-3">
-          <button onClick={() => setIsRealisationModalOpen(true)}
+          <button onClick={() => { setEditingRealisation(null); setIsRealisationModalOpen(true); }}
             className="bg-gradient-to-tr from-emerald-600 to-emerald-700 hover:scale-105 text-white rounded-2xl shadow-2xl shadow-emerald-600/40 transition-transform flex items-center justify-center w-14 h-14">
             <PenLine size={22} />
           </button>
@@ -2319,13 +2462,15 @@ export default function FullyLoadedPremiumDashboard() {
         existing={editingCollaborator}
         allCollaborators={collaborators}
       />
+      {/* ← NOUVEAU : prop existing câblée sur editingRealisation */}
       <RealisationModal
         isOpen={isRealisationModalOpen}
-        onClose={() => setIsRealisationModalOpen(false)}
+        onClose={() => { setIsRealisationModalOpen(false); setEditingRealisation(null); }}
         onSave={handleSaveRealisation}
         objectives={objectives}
         currentUser={currentUser}
         collaborators={collaborators}
+        existing={editingRealisation}
       />
       <PrintModal
         isOpen={isPrintModalOpen}

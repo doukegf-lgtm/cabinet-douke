@@ -1,0 +1,224 @@
+// ============================================================
+// diagnose-writes.mjs
+// Reproduit exactement le comportement de dashboardWrite()
+// (insert -> select('*').single(), update, delete) pour les
+// tables collaborators, objectives, realisations.
+//
+// Utilisation :
+//   node diagnose-writes.mjs
+//
+// Place ce fichier à la racine du projet (/workspaces/cabinet-douke)
+// ============================================================
+
+import { createClient } from '@supabase/supabase-js';
+import { readFileSync, existsSync } from 'fs';
+import path from 'path';
+
+function loadEnvLocal() {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (!existsSync(envPath)) {
+    console.error('❌ .env.local introuvable à la racine du projet.');
+    process.exit(1);
+  }
+  const content = readFileSync(envPath, 'utf-8');
+  content.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) return;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    value = value.replace(/^["']|["']$/g, '');
+    process.env[key] = value;
+  });
+}
+
+loadEnvLocal();
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('❌ NEXT_PUBLIC_SUPABASE_URL manquant dans .env.local');
+  process.exit(1);
+}
+
+console.log('🔗 URL Supabase :', SUPABASE_URL);
+console.log('🔑 SUPABASE_SERVICE_ROLE_KEY défini :', !!SERVICE_ROLE_KEY);
+console.log('🔑 NEXT_PUBLIC_SUPABASE_ANON_KEY défini :', !!ANON_KEY);
+
+if (!SERVICE_ROLE_KEY) {
+  console.log('⚠️  SUPABASE_SERVICE_ROLE_KEY est ABSENT.');
+  console.log('   => createServerSupabaseClient() retombe sur la clé ANON.');
+  console.log('   => Si RLS est activé sans policy INSERT pour le rôle "anon",');
+  console.log('      tous les inserts depuis /api/dashboard échoueront (souvent en 401/403/406).');
+}
+
+const keyUsedByServer = SERVICE_ROLE_KEY || ANON_KEY;
+const usingFallback = !SERVICE_ROLE_KEY;
+
+console.log(`\n➡️  Le serveur (/api/dashboard) utilise actuellement : ${usingFallback ? 'la clé ANON (fallback)' : 'la clé SERVICE_ROLE'}\n`);
+
+const supabase = createClient(SUPABASE_URL, keyUsedByServer);
+
+const TEST_ORG_ID = 'd2222222-2222-2222-2222-222222222222';
+
+function logStep(title) {
+  console.log(`\n========================================`);
+  console.log(`▶ ${title}`);
+  console.log(`========================================`);
+}
+
+function logResult(label, { data, error, status, statusText }) {
+  if (error) {
+    console.log(`❌ ${label} — ERREUR`);
+    console.log('   message :', error.message);
+    if (error.details) console.log('   details :', error.details);
+    if (error.hint) console.log('   hint    :', error.hint);
+    if (error.code) console.log('   code    :', error.code);
+    if (status) console.log('   http    :', status, statusText || '');
+  } else {
+    console.log(`✅ ${label} — OK`);
+    if (data !== undefined) console.log('   data    :', JSON.stringify(data));
+  }
+}
+
+async function testCollaborator() {
+  logStep('TEST 1 — collaborators (insert -> select.single -> update -> delete)');
+
+  const id = crypto.randomUUID();
+  const insertPayload = {
+    id,
+    first_name: 'Diag',
+    last_name: 'Test',
+    avatar_emoji: '🧪',
+    role: 'Testeur',
+    profile: 'Junior',
+    organization_id: TEST_ORG_ID,
+    senior_id: null,
+    email: 'diag.test@example.com',
+    performance: 50,
+  };
+
+  const insertRes = await supabase.from('collaborators').insert(insertPayload).select('*').single();
+  logResult('INSERT collaborators + select().single()', insertRes);
+
+  if (insertRes.error) {
+    console.log('   ⏭  Update/Delete ignorés (insert a échoué).');
+    return;
+  }
+
+  const updateRes = await supabase.from('collaborators').update({ performance: 75 }).eq('id', id).select('*').single();
+  logResult('UPDATE collaborators + select().single()', updateRes);
+
+  const deleteRes = await supabase.from('collaborators').delete().eq('id', id);
+  logResult('DELETE collaborators', deleteRes);
+}
+
+async function testObjective() {
+  logStep('TEST 2 — objectives (insert -> select.single -> update -> delete)');
+
+  const id = crypto.randomUUID();
+  const insertPayload = {
+    id,
+    title: 'Dossier de diagnostic (à supprimer)',
+    structure_type: 'Cabinet DOUKE',
+    status: 'En cours',
+    priority: 'Basse',
+    deadline: '2026-12-31',
+    progress_percentage: 0,
+    organization_id: TEST_ORG_ID,
+    assigned_to: null,
+  };
+
+  const insertRes = await supabase.from('objectives').insert(insertPayload).select('*').single();
+  logResult('INSERT objectives + select().single()', insertRes);
+
+  if (insertRes.error) {
+    console.log('   ⏭  Update/Delete ignorés (insert a échoué).');
+    return null;
+  }
+
+  const updateRes = await supabase.from('objectives').update({ progress_percentage: 10 }).eq('id', id).select('*').single();
+  logResult('UPDATE objectives + select().single()', updateRes);
+
+  const deleteRes = await supabase.from('objectives').delete().eq('id', id);
+  logResult('DELETE objectives', deleteRes);
+
+  return id;
+}
+
+async function testRealisation() {
+  logStep('TEST 3 — realisations (insert -> select.single -> delete)');
+
+  // On a besoin d'un objective_id existant : on récupère le premier disponible
+  const { data: existingObjs, error: objErr } = await supabase.from('objectives').select('id').limit(1);
+  if (objErr || !existingObjs || existingObjs.length === 0) {
+    console.log('⚠️  Impossible de récupérer un objective_id existant pour le test realisations.');
+    console.log('   error:', objErr?.message);
+    return;
+  }
+  const objectiveId = existingObjs[0].id;
+
+  const { data: existingCollabs, error: collabErr } = await supabase.from('collaborators').select('id').limit(1);
+  if (collabErr || !existingCollabs || existingCollabs.length === 0) {
+    console.log('⚠️  Impossible de récupérer un collaborator id existant pour le test realisations.');
+    console.log('   error:', collabErr?.message);
+    return;
+  }
+  const userId = existingCollabs[0].id;
+
+  const id = crypto.randomUUID();
+  const insertPayload = {
+    id,
+    user_id: userId,
+    objective_id: objectiveId,
+    description: 'Réalisation de diagnostic (à supprimer)',
+    date: new Date().toISOString().split('T')[0],
+    duration_hours: 1,
+    progress_after: 0,
+    validated_by: null,
+  };
+
+  const insertRes = await supabase.from('realisations').insert(insertPayload).select('*').single();
+  logResult('INSERT realisations + select().single()', insertRes);
+
+  if (insertRes.error) {
+    console.log('   ⏭  Delete ignoré (insert a échoué).');
+    return;
+  }
+
+  const deleteRes = await supabase.from('realisations').delete().eq('id', id);
+  logResult('DELETE realisations', deleteRes);
+}
+
+async function main() {
+  console.log('🔍 DIAGNOSTIC ÉCRITURES SUPABASE — Cabinet DOUKE');
+
+  await testCollaborator();
+  await testObjective();
+  await testRealisation();
+
+  console.log('\n========================================');
+  console.log('🏁 Diagnostic terminé.');
+  console.log('========================================');
+  console.log(`
+Interprétation rapide :
+- Erreur 401/403 ou message contenant "permission denied" / "row-level security"
+  => Policy RLS manquante pour INSERT/UPDATE/DELETE sur la table concernée,
+     pour le rôle utilisé par le serveur (anon ou service_role).
+- Erreur 406 ou code "PGRST116" ("JSON object requested, multiple/no rows")
+  => La requête .select('*').single() après insert/update n'a reçu AUCUNE ligne :
+     soit l'insert/update a été silencieusement bloqué par RLS (0 ligne affectée),
+     soit une contrainte a empêché l'écriture (vérifier aussi le code "23xxx" associé).
+- Erreur "violates foreign key constraint" (code 23503)
+  => Une colonne référence une table/ligne qui n'existe pas (cf. le cas
+     objectives_assigned_to_fkey déjà corrigé).
+- Erreur "violates not-null constraint" (code 23502)
+  => Une colonne requise n'est pas envoyée dans le payload.
+- Tout en ✅ => les écritures fonctionnent au niveau base ; le souci serait alors
+  côté /api/dashboard (route.ts) ou côté affichage dans page.tsx.
+`);
+}
+
