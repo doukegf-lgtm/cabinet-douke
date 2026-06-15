@@ -1565,7 +1565,7 @@ function RealisationModal({
               </label>
               <input type="number" min="0.5" max="24" step="0.5" value={form.duration_hours}
                 onChange={(e) => setForm((f) => ({ ...f, duration_hours: parseFloat(e.target.value) }))}
-      useEffect(() => {          className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
             </div>
           </div>
           {selectedObj && (
@@ -1798,73 +1798,54 @@ export default function FullyLoadedPremiumDashboard() {
     });
   };
 
+  const [refreshKey, setRefreshKey] = useState(0);
+  const triggerRefresh = () => setRefreshKey((k) => k + 1);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) return;
+    const controller = new AbortController();
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/dashboard', { cache: 'no-store', signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || 'Erreur de chargement');
+        const collabs = (payload.collaborators ?? []) as Collaborator[];
+        const allObjectives = (payload.objectives ?? []) as Objective[];
+        const allActivities = (payload.activities ?? []) as Activity[];
+        const allRealisations = (payload.realisations ?? []) as Realisation[];
+        const allRemarques = (payload.remarques ?? []) as Remarque[];
+        const visibleObjectives = currentUser.orgId === 'Tous' ? allObjectives : allObjectives.filter((o) => o.organization_id === currentUser.orgId);
+        const visibleRealisations = currentUser.orgId === 'Tous' ? allRealisations : allRealisations.filter((r) => r.user_id === currentUser.collaborator_id);
+        setCollaborators(collabs);
+        setObjectives(visibleObjectives);
+        setActivities(allActivities);
+        setRealisations(visibleRealisations);
+        setRemarques(allRemarques);
+        calculateMetrics(visibleObjectives);
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        console.error('Erreur loadData:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+    return () => controller.abort();
+  }, [currentUser, isAuthenticated, refreshKey]);
+
   const apiRequest = async <T,>(action: string, table: string, data?: unknown, id?: string): Promise<T> => {
     const response = await fetch('/api/dashboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, table, data, id }),
     });
-
     const payload = await response.json();
     if (!response.ok) {
       throw new Error(payload?.error || 'Erreur API');
-    }useEffect(() => {
-
+    }
     return payload.data as T;
   };
-
-  const [refreshKey, setRefreshKey] = useState(0);
-const triggerRefresh = () => setRefreshKey((k) => k + 1);
-
-  const controller = new AbortController();
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/dashboard', {
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-      const payload = await response.json();
-
-      if (!response.ok) throw new Error(payload?.error || 'Erreur de chargement');
-
-      const collabs = (payload.collaborators ?? []) as Collaborator[];
-      const allObjectives = (payload.objectives ?? []) as Objective[];
-      const allActivities = (payload.activities ?? []) as Activity[];
-      const allRealisations = (payload.realisations ?? []) as Realisation[];
-      const allRemarques = (payload.remarques ?? []) as Remarque[];
-
-      const visibleObjectives = currentUser.orgId === 'Tous'
-        ? allObjectives
-        : allObjectives.filter((o) => o.organization_id === currentUser.orgId);
-
-      const visibleRealisations = currentUser.orgId === 'Tous'
-        ? allRealisations
-        : allRealisations.filter((r) => r.user_id === currentUser.collaborator_id);
-
-      setCollaborators(collabs);
-      setObjectives(visibleObjectives);
-      setActivities(allActivities);
-      setRealisations(visibleRealisations);
-      setRemarques(allRemarques);
-      calculateMetrics(visibleObjectives);
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
-      console.error('Erreur loadData:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  loadData();
-
-  return () => controller.abort();
-}, [currentUser, isAuthenticated, refreshKey]);
-
-  
-    if (isAuthenticated && currentUser) loadData(currentUser);
-  }, [currentUser, isAuthenticated]);
 
   const handleUpdateProgress = async (id: string, currentProgress: number, currentTitle: string, increment: number) => {
   const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
@@ -1880,7 +1861,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: 'update',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur update progress:', err);
   }
@@ -1931,7 +1912,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: isEdit ? 'update' : 'creation',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur save objective:', err);
   }
@@ -1948,7 +1929,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: 'deletion',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur delete objective:', err);
   }
@@ -2003,7 +1984,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: 'update',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur save collaborator:', err);
   }
@@ -2020,7 +2001,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: 'deletion',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur delete collaborator:', err);
   }
@@ -2052,7 +2033,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
       date: todayISO(),
       type: 'realisation',
     });
-    await loadData(currentUser);
+    triggerRefresh();
   } catch (err) {
     console.error('Erreur save realisation:', err);
   }
@@ -2130,7 +2111,7 @@ const triggerRefresh = () => setRefreshKey((k) => k + 1);
         </div>
 
         <div className="p-4 border-t border-slate-800/80 bg-[#1E293B]/20 flex flex-col gap-2">
-          <button onClick={() => loadData(currentUser)}
+          <button onClick={() => triggerRefresh()}
             className="w-full flex items-center justify-center gap-2 p-3 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl border border-slate-800 hover:bg-slate-800 transition-all">
             <RefreshCw size={14} className="text-blue-500" />
             <span>Rafraîchir les données</span>
