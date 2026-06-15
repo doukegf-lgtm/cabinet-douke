@@ -1825,6 +1825,7 @@ export default function FullyLoadedPremiumDashboard() {
   const [currentView, setCurrentView] = useState('Tableau de bord');
   const [currentStructure, setCurrentStructure] = useState('Tous');
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -2200,69 +2201,130 @@ export default function FullyLoadedPremiumDashboard() {
   })();
 
   return (
-    <div className="flex h-screen bg-[#F1F5F9] font-sans text-slate-800 overflow-hidden">
-      <aside className="w-72 bg-[#0F172A] text-slate-300 flex flex-col shadow-2xl shrink-0 z-10 border-r border-slate-800">
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="p-6 flex items-center gap-3.5 border-b border-slate-800 bg-[#1E293B]/40">
-            <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/30">
-              <ShieldCheck size={24} />
-            </div>
-            <div>
+  <div className="flex h-screen bg-[#F1F5F9] font-sans text-slate-800 overflow-hidden">
+    {/* Overlay mobile */}
+    {sidebarOpen && (
+      <div
+        className="fixed inset-0 bg-black/50 z-20 md:hidden"
+        onClick={() => setSidebarOpen(false)}
+      />
+    )}
+    {/* Bouton burger mobile */}
+    {!sidebarOpen && (
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="fixed top-4 left-4 z-30 md:hidden bg-[#0F172A] text-white p-2.5 rounded-xl shadow-lg border border-slate-700"
+      >
+        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="2" y1="5" x2="18" y2="5"/>
+          <line x1="2" y1="10" x2="18" y2="10"/>
+          <line x1="2" y1="15" x2="18" y2="15"/>
+        </svg>
+      </button>
+    )}
+
+    {/* ===== SIDEBAR ===== */}
+    <aside className={`
+      bg-[#0F172A] text-slate-300 flex flex-col shadow-2xl shrink-0 z-30 border-r border-slate-800
+      transition-all duration-300
+      ${sidebarOpen ? 'w-72' : 'w-0 md:w-16'}
+      fixed md:relative h-full overflow-hidden
+    `}>
+      <div className="flex-1 overflow-y-auto min-h-0">
+
+        {/* Logo + Toggle */}
+        <div className="p-4 flex items-center gap-3.5 border-b border-slate-800 bg-[#1E293B]/40 relative">
+          <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/30 shrink-0">
+            <ShieldCheck size={24} />
+          </div>
+          {sidebarOpen && (
+            <div className="min-w-0">
               <h1 className="font-black text-white text-md uppercase tracking-wider leading-none">Cabinet DOUKE</h1>
               <p className="text-[10px] text-blue-400 font-bold tracking-widest uppercase mt-1">Gouvernance & Sovereign Auth</p>
             </div>
-          </div>
+          )}
+          {/* Bouton toggle desktop/tablette */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hidden md:flex ml-auto shrink-0 text-slate-400 hover:text-white transition-all"
+          >
+            <svg
+              width="18" height="18" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transform: sidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.3s' }}
+            >
+              <polyline points="11 17 6 12 11 7"/>
+            </svg>
+          </button>
+        </div>
 
-          <div className="p-4 mx-4 my-4 bg-[#1E293B]/60 border border-slate-800 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Lock size={12} className="text-emerald-400 animate-pulse" />
-              <span className="text-[10px] uppercase tracking-wider font-black text-slate-400">Session Active</span>
-            </div>
-            <div className="flex items-center gap-3 bg-[#0F172A] border border-slate-700 rounded-lg p-2.5">
-              <span className="text-xl">{currentUser.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-black text-white truncate">{currentUser.name}</p>
-                <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider">{currentUser.role}</p>
-              </div>
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            </div>
-          </div>
+          <div className={`mx-4 my-4 bg-[#1E293B]/60 border border-slate-800 rounded-xl ${sidebarOpen ? 'p-4' : 'p-2 flex justify-center'}`}>
+  {sidebarOpen ? (
+    <>
+      <div className="flex items-center gap-2 mb-2">
+        <Lock size={12} className="text-emerald-400 animate-pulse" />
+        <span className="text-[10px] uppercase tracking-wider font-black text-slate-400">Session Active</span>
+      </div>
+      <div className="flex items-center gap-3 bg-[#0F172A] border border-slate-700 rounded-lg p-2.5">
+        <span className="text-xl">{currentUser.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-black text-white truncate">{currentUser.name}</p>
+          <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider">{currentUser.role}</p>
+        </div>
+        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+      </div>
+    </>
+  ) : (
+    <span className="text-xl" title={currentUser.name}>{currentUser.emoji}</span>
+  )}
+</div>
 
           <nav className="p-4 space-y-1.5">
-            {navItems.map((item, idx) => (
+            
               <button key={idx} onClick={() => setCurrentView(item.view)}
-                className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                  currentView === item.view
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400'
-                    : 'hover:bg-slate-800/60 hover:text-white text-slate-400'
-                }`}>
-                {item.icon}<span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
+               {navItems.map((item, idx) => (
+  <button key={idx}
+    onClick={() => { setCurrentView(item.view); if (window.innerWidth < 768) setSidebarOpen(false); }}
+    title={!sidebarOpen ? item.label : undefined}
+    className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+      sidebarOpen ? '' : 'justify-center'
+    } ${
+      currentView === item.view
+        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400'
+        : 'hover:bg-slate-800/60 hover:text-white text-slate-400'
+    }`}>
+    {item.icon}
+    {sidebarOpen && <span>{item.label}</span>}
+  </button>
+))}
 
           <div className="px-4">
             <button onClick={() => setIsPrintModalOpen(true)}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl text-slate-400 hover:bg-slate-800/60 hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider">
-              <Printer size={20} /><span>Imprimer un rapport</span>
-            </button>
+  title={!sidebarOpen ? 'Imprimer un rapport' : undefined}
+  className={`w-full flex items-center gap-3 p-3.5 rounded-xl text-slate-400 hover:bg-slate-800/60 hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider ${!sidebarOpen ? 'justify-center' : ''}`}>
+  <Printer size={20} />
+  {sidebarOpen && <span>Imprimer un rapport</span>}
+</button>
           </div>
         </div>
 
         <div className="p-4 border-t border-slate-800/80 bg-[#1E293B]/20 flex flex-col gap-2">
-          <button onClick={() => loadData(currentUser)}
-            className="w-full flex items-center justify-center gap-2 p-3 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl border border-slate-800 hover:bg-slate-800 transition-all">
-            <RefreshCw size={14} className="text-blue-500" />
-            <span>Rafraîchir les données</span>
-          </button>
-          <button onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 p-3.5 text-xs font-black uppercase tracking-wider text-white rounded-xl bg-rose-600 hover:bg-rose-700 transition-all shadow-lg">
-            <LogOut size={16} /><span>Déconnexion sécurisée</span>
-          </button>
-        </div>
+  <button onClick={() => loadData(currentUser)}
+    title={!sidebarOpen ? 'Rafraîchir' : undefined}
+    className="w-full flex items-center justify-center gap-2 p-3 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl border border-slate-800 hover:bg-slate-800 transition-all">
+    <RefreshCw size={14} className="text-blue-500" />
+    {sidebarOpen && <span>Rafraîchir les données</span>}
+  </button>
+  <button onClick={handleLogout}
+    title={!sidebarOpen ? 'Déconnexion' : undefined}
+    className="w-full flex items-center justify-center gap-2 p-3.5 text-xs font-black uppercase tracking-wider text-white rounded-xl bg-rose-600 hover:bg-rose-700 transition-all shadow-lg">
+    <LogOut size={16} />
+    {sidebarOpen && <span>Déconnexion sécurisée</span>}
+  </button>
+</div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-y-auto">
+      <main className={`flex-1 flex flex-col overflow-y-auto transition-all duration-300 ${!sidebarOpen ? 'md:ml-0' : ''}`}>
         <header className="bg-white border-b border-slate-200 h-20 px-8 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-6">
             <div>
