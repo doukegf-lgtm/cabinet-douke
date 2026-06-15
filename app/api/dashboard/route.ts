@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, dashboardRead, dashboardWrite, WritePayload } from '@/app/supabaseClient';
 
+// ✅ GET — déjà fonctionnel
 export async function GET() {
   try {
     const client = createServerSupabaseClient();
@@ -12,6 +13,7 @@ export async function GET() {
   }
 }
 
+// ✅ POST — manquait complètement
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -21,9 +23,11 @@ export async function POST(req: NextRequest) {
       data?: WritePayload;
       id?: string;
     };
+
     if (!action || !table) {
       return NextResponse.json({ error: 'action et table sont requis' }, { status: 400 });
     }
+
     const client = createServerSupabaseClient();
     const result = await dashboardWrite(client, action, table, data, id);
     return NextResponse.json({ data: result });
