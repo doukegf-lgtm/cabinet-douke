@@ -8,7 +8,7 @@ export async function GET() {
     const data = await dashboardRead(client);
     return NextResponse.json(data);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erreur inconnue';
+    const message = err instanceof Error ? err.message : JSON.stringify(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const result = await dashboardWrite(client, action, table, data, id);
     return NextResponse.json({ data: result });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erreur inconnue';
+    const message = err instanceof Error ? err.message : JSON.stringify(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
