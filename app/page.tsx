@@ -1493,9 +1493,9 @@ function RealisationModal({
 }) {
   const defaultForm = { objective_id: '', description: '', date: todayISO(), duration_hours: 1, progress_after: 0 };
   const [form, setForm] = useState(defaultForm);
-  const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
+ const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
 
-  
+  useEffect(() => {
     if (!isOpen) { setForm(defaultForm); setSelectedObj(null); }
   }, [isOpen]);
 
