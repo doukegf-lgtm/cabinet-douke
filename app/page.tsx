@@ -206,7 +206,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
       }
       const resolveOrgId = (orgId: string, role: string): string => {
         if (role === 'Super-Admin' || orgId === 'org_douke_01') return 'Tous';
-        if (orgId === 'org_conacce_01') return 'd1111111-1111-1111-1111-111111111111';
+        if (orgId === 'org_conacce_01') return 'c1111111-1111-1111-1111-111111111111';
         return orgId;
       };
 
