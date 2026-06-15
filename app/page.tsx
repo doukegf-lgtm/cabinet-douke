@@ -204,13 +204,19 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         setLoading(false);
         return;
       }
+      const resolveOrgId = (orgId: string, role: string): string => {
+        if (role === 'Super-Admin' || orgId === 'org_douke_01') return 'Tous';
+        if (orgId === 'org_conacce_01') return 'd1111111-1111-1111-1111-111111111111';
+        return orgId;
+      };
+
       const account: AuthAccount = {
         id: data.id,
         username: data.username,
         password: data.password_hash,
         name: data.name,
         role: data.role,
-        orgId: data.org_id,
+        orgId: resolveOrgId(data.org_id, data.role),
         emoji: data.emoji,
         collaborator_id: data.collaborator_id ?? '',
         color: data.color,
