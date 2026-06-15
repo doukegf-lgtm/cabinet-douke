@@ -1893,7 +1893,6 @@ export default function FullyLoadedPremiumDashboard() {
       }, formData.id);
     } else {
       await apiRequest('insert', 'objectives', {
-        id: formData.id,
         title: formData.title,
         structure_type: formData.structure_type,
         category: formData.category,
