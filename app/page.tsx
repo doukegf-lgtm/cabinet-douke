@@ -8,7 +8,7 @@ import {
   Landmark, Briefcase, FileText, ArrowUpRight, LogOut, Eye, EyeOff,
   Trash2, Edit3, UserPlus, Link2, ChevronRight, FolderOpen, Save,
   Search, Filter, Printer, PenLine, Clock, MessageSquare, CheckSquare,
-  CalendarRange,
+  CalendarRange, Building2, Phone,
 } from 'lucide-react';
 
 // ============================================================
@@ -17,7 +17,7 @@ import {
 const supabase = createBrowserSupabaseClient();
 
 // ============================================================
-// TYPES
+// BLOC 1 — TYPES MIS À JOUR
 // ============================================================
 type Category = {
   id: string;
@@ -38,6 +38,29 @@ type Objective = {
   progress_percentage: number;
   organization_id: string;
   assigned_to: string;
+  // Nouveaux champs confirmés en base
+  raison_sociale: string | null;
+  mini_description: string | null;
+  contact_nom: string | null;
+  contact_email: string | null;
+  linked_type: 'dossier' | 'admin' | 'autre';
+  linked_dossier_id: string | null;
+};
+
+type PlannedAction = {
+  id: string;
+  title: string;
+  description: string | null;
+  user_id: string;
+  assigned_to: string;
+  objective_id: string | null;
+  linked_type: 'dossier' | 'admin' | 'autre';
+  planned_date: string;
+  period_type: 'semaine' | 'mois';
+  status: 'planifié' | 'en cours' | 'fait';
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type Collaborator = {
@@ -161,6 +184,7 @@ const computeStatus = (progress: number): string => {
   if (progress < 40) return 'En retard';
   return 'En cours';
 };
+
 const createRecordId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -209,7 +233,6 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         if (orgId === 'org_conacce_01') return 'c1111111-1111-1111-1111-111111111111';
         return orgId;
       };
-
       const account: AuthAccount = {
         id: data.id,
         username: data.username,
@@ -294,6 +317,9 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
   );
 }
 
+// ============================================================
+// ADMIN DASHBOARD
+// ============================================================
 function AdminDashboard({
   objectives, collaborators, activities, realisations, stats, currentStructure,
   setCurrentView, currentUser,
@@ -459,6 +485,9 @@ function AdminDashboard({
   );
 }
 
+// ============================================================
+// BLOC 2 — SENIOR DASHBOARD (RBAC CORRIGÉ)
+// ============================================================
 function SeniorDashboard({
   objectives, collaborators, realisations, remarques, stats, currentUser,
 }: {
@@ -469,11 +498,22 @@ function SeniorDashboard({
   stats: any;
   currentUser: AuthAccount;
 }) {
+  // RBAC : Senior voit uniquement ses juniors directs
   const myJuniors = collaborators.filter((c) => c.senior_id === currentUser.collaborator_id);
+  const myJuniorIds = myJuniors.map((j) => j.id);
+  const myScope = [currentUser.collaborator_id, ...myJuniorIds];
+
+  // Objectifs dans le périmètre du Senior
   const myObjectives = objectives.filter((o) => o.assigned_to === currentUser.collaborator_id);
+  const juniorObjectives = objectives.filter((o) => myJuniorIds.includes(o.assigned_to));
+
   const urgents = myObjectives.filter((o) =>
-    o.status === 'En retard' || o.deadline <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    o.status === 'En retard' ||
+    o.deadline <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
+
+  // Réalisations filtrées au périmètre Senior uniquement
+  const scopedRealisations = realisations.filter((r) => myScope.includes(r.user_id));
 
   return (
     <>
@@ -501,7 +541,7 @@ function SeniorDashboard({
           {myObjectives.length === 0 && <div className="p-8 text-center text-slate-400 text-xs font-medium italic">Aucun dossier assigné.</div>}
           {myObjectives.map((obj, i) => {
             const catInfo = getCategoryInfo(obj.category);
-            const myReal = realisations.filter((r) => r.objective_id === obj.id && r.user_id === currentUser.collaborator_id);
+            const myReal = scopedRealisations.filter((r) => r.objective_id === obj.id && r.user_id === currentUser.collaborator_id);
             return (
               <div key={i} className="p-4 hover:bg-slate-50 transition-all">
                 <div className="flex items-start justify-between gap-4">
@@ -514,6 +554,7 @@ function SeniorDashboard({
                       {obj.priority === 'Critique' && <span className="text-[9px] font-black text-rose-600">⚡ Critique</span>}
                     </div>
                     <p className="font-black text-slate-900 text-sm mb-2">{obj.title}</p>
+                    {obj.raison_sociale && <p className="text-[10px] text-slate-500 font-bold mb-1">🏢 {obj.raison_sociale}</p>}
                     <div className="flex items-center gap-3">
                       <div className="flex-1 max-w-48 bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-full" style={{ width: `${obj.progress_percentage}%` }}></div>
@@ -538,8 +579,8 @@ function SeniorDashboard({
           </div>
           <div className="p-4 space-y-4">
             {myJuniors.map((junior, ji) => {
-              const juniorObjs = objectives.filter((o) => o.assigned_to === junior.id);
-              const juniorReal = realisations.filter((r) => r.user_id === junior.id);
+              const juniorObjs = juniorObjectives.filter((o) => o.assigned_to === junior.id);
+              const juniorReal = scopedRealisations.filter((r) => r.user_id === junior.id);
               const juniorAvg = juniorObjs.length > 0 ? Math.round(juniorObjs.reduce((s, o) => s + o.progress_percentage, 0) / juniorObjs.length) : 0;
               return (
                 <div key={ji} className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
@@ -587,7 +628,7 @@ function SeniorDashboard({
             <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">Dernières Réalisations de mes Juniors</h3>
           </div>
           <div className="divide-y divide-slate-50">
-            {realisations.filter((r) => myJuniors.some((j) => j.id === r.user_id)).slice(0, 5).map((r, ri) => {
+            {scopedRealisations.filter((r) => myJuniorIds.includes(r.user_id)).slice(0, 5).map((r, ri) => {
               const collab = collaborators.find((c) => c.id === r.user_id);
               const obj = objectives.find((o) => o.id === r.objective_id);
               return (
@@ -604,7 +645,7 @@ function SeniorDashboard({
                 </div>
               );
             })}
-            {realisations.filter((r) => myJuniors.some((j) => j.id === r.user_id)).length === 0 && (
+            {scopedRealisations.filter((r) => myJuniorIds.includes(r.user_id)).length === 0 && (
               <div className="p-8 text-center text-slate-400 text-xs italic">Aucune réalisation enregistrée par vos juniors.</div>
             )}
           </div>
@@ -614,6 +655,9 @@ function SeniorDashboard({
   );
 }
 
+// ============================================================
+// JUNIOR DASHBOARD
+// ============================================================
 function JuniorDashboard({
   objectives, collaborators, realisations, remarques, currentUser, onSaisirRealisation,
 }: {
@@ -628,7 +672,8 @@ function JuniorDashboard({
   const myRealisations = realisations.filter((r) => r.user_id === currentUser.collaborator_id);
   const myRemarques = remarques.filter((r) => r.to_id === currentUser.collaborator_id);
   const myAvg = myObjectives.length > 0 ? Math.round(myObjectives.reduce((s, o) => s + o.progress_percentage, 0) / myObjectives.length) : 0;
-  const mySenior = collaborators.find((c) => c.id === collaborators.find((col) => col.id === currentUser.collaborator_id)?.senior_id);
+  const mySeniorId = collaborators.find((c) => c.id === currentUser.collaborator_id)?.senior_id;
+  const mySenior = collaborators.find((c) => c.id === mySeniorId);
   const thisWeekObjs = myObjectives.filter((o) => {
     const deadline = new Date(o.deadline);
     const today = new Date();
@@ -728,6 +773,7 @@ function JuniorDashboard({
                       {obj.priority === 'Critique' && <span className="text-[9px] font-black text-rose-600 animate-pulse">⚡ Critique</span>}
                     </div>
                     <p className="font-black text-slate-900 text-sm">{obj.title}</p>
+                    {obj.raison_sociale && <p className="text-[10px] text-slate-500 font-bold mt-0.5">🏢 {obj.raison_sociale}</p>}
                     <p className="text-[10px] text-slate-400 font-bold mt-0.5">Échéance : {formatDate(obj.deadline)}</p>
                   </div>
                   <div className="text-right shrink-0">
@@ -795,6 +841,9 @@ function JuniorDashboard({
   );
 }
 
+// ============================================================
+// RÉALISATIONS VIEW
+// ============================================================
 function RealisationsView({
   realisations, objectives, collaborators, currentUser, onAdd,
 }: {
@@ -890,6 +939,9 @@ function RealisationsView({
   );
 }
 
+// ============================================================
+// OBJECTIFS VIEW
+// ============================================================
 function ObjectifsView({
   objectives, collaborators, currentUser, onAddObjective, onEditObjective, onDeleteObjective, onUpdateProgress, filterCategory, setFilterCategory, searchQuery, setSearchQuery,
 }: {
@@ -906,13 +958,19 @@ function ObjectifsView({
   setSearchQuery: (v: string) => void;
 }) {
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
+  const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
   const canEdit = !isJuniorOrSecretary || currentUser.role === 'Secretaire';
   const canAdd = !isJuniorOrSecretary;
 
   const displayObjectives = (() => {
-    let objs = isJuniorOrSecretary && currentUser.role !== 'Secretaire'
-      ? objectives.filter((o) => o.assigned_to === currentUser.collaborator_id)
-      : objectives;
+    let objs: Objective[];
+    if (currentUser.role === 'Super-Admin') {
+      objs = objectives;
+    } else if (isSenior) {
+      objs = objectives; // déjà filtrés au périmètre Senior via le state parent
+    } else {
+      objs = objectives.filter((o) => o.assigned_to === currentUser.collaborator_id);
+    }
     if (filterCategory !== 'all') objs = objs.filter((o) => o.category === filterCategory);
     if (searchQuery.trim()) objs = objs.filter((o) => o.title.toLowerCase().includes(searchQuery.toLowerCase()));
     return objs;
@@ -955,6 +1013,7 @@ function ObjectifsView({
             <thead>
               <tr className="bg-slate-50 text-slate-400 uppercase text-[10px] tracking-widest border-b border-slate-200">
                 <th className="p-4 font-black">Dossier / Mission</th>
+                <th className="p-4 font-black">Client / Projet</th>
                 <th className="p-4 font-black">Catégorie</th>
                 <th className="p-4 font-black">Structure</th>
                 <th className="p-4 font-black">Échéance</th>
@@ -966,13 +1025,24 @@ function ObjectifsView({
               </tr>
             </thead>
             <tbody>
-              {displayObjectives.length === 0 && <tr><td colSpan={9} className="p-12 text-center text-slate-400 italic text-xs">Aucun dossier trouvé.</td></tr>}
+              {displayObjectives.length === 0 && <tr><td colSpan={10} className="p-12 text-center text-slate-400 italic text-xs">Aucun dossier trouvé.</td></tr>}
               {displayObjectives.map((obj, i) => {
                 const catInfo = getCategoryInfo(obj.category);
                 const assignee = collaborators.find((c) => c.id === obj.assigned_to);
                 return (
                   <tr key={i} className="border-b last:border-0 hover:bg-slate-50/80 transition-all">
-                    <td className="p-4 font-black text-slate-900 text-sm max-w-xs"><div className="truncate">{obj.title}</div></td>
+                    <td className="p-4 font-black text-slate-900 text-sm max-w-xs">
+                      <div className="truncate">{obj.title}</div>
+                      {obj.mini_description && <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{obj.mini_description}</div>}
+                    </td>
+                    <td className="p-4 max-w-[120px]">
+                      {obj.raison_sociale ? (
+                        <div>
+                          <p className="font-bold text-slate-700 text-[11px] truncate">{obj.raison_sociale}</p>
+                          {obj.contact_nom && <p className="text-[9px] text-slate-400 truncate">{obj.contact_nom}</p>}
+                        </div>
+                      ) : <span className="text-slate-300 text-[10px]">—</span>}
+                    </td>
                     <td className="p-4">
                       <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] border flex items-center gap-1 w-fit ${CATEGORY_STYLES[obj.category] || CATEGORY_STYLES.other}`}>
                         <span>{catInfo?.icon}</span>
@@ -1030,6 +1100,9 @@ function ObjectifsView({
   );
 }
 
+// ============================================================
+// ÉQUIPE VIEW
+// ============================================================
 function EquipeView({
   collaborators, objectives, realisations, currentUser, onAddCollaborator, onEditCollaborator, onDeleteCollaborator,
 }: {
@@ -1184,6 +1257,259 @@ function EquipeView({
   );
 }
 
+// ============================================================
+// BLOC 3 — OBJECTIVE MODAL ENRICHI
+// ============================================================
+function ObjectiveModal({
+  isOpen, onClose, onSave, onDelete, existing, collaborators, currentUser,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: Objective) => void;
+  onDelete: (id: string) => void;
+  existing: Objective | null;
+  collaborators: Collaborator[];
+  currentUser: AuthAccount;
+}) {
+  const defaultForm: Objective = {
+    id: '',
+    title: '',
+    structure_type: 'Cabinet DOUKE',
+    category: 'project_douke',
+    status: 'En cours',
+    priority: 'Haute',
+    deadline: '2026-06-30',
+    progress_percentage: 0,
+    organization_id: 'd2222222-2222-2222-2222-222222222222',
+    assigned_to: '',
+    raison_sociale: null,
+    mini_description: null,
+    contact_nom: null,
+    contact_email: null,
+    linked_type: 'dossier',
+    linked_dossier_id: null,
+  };
+
+  const [form, setForm] = useState<Objective>(defaultForm);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setForm(existing ? { ...existing } : { ...defaultForm, id: '' });
+    setConfirmDelete(false);
+  }, [existing, isOpen]);
+
+  if (!isOpen) return null;
+
+  const isConacce = form.organization_id === 'c1111111-1111-1111-1111-111111111111';
+  const cats = isConacce ? DOSSIER_CATEGORIES_CONACCE : DOSSIER_CATEGORIES_DOUKE;
+
+  const LINKED_TYPES = [
+    { id: 'dossier', label: 'Dossier Client / Projet', icon: '🤝' },
+    { id: 'admin', label: 'Administratif Interne', icon: '📋' },
+    { id: 'autre', label: 'Autre', icon: '📁' },
+  ] as const;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        <div className="flex items-center gap-3 mb-5">
+          <div className={`p-2.5 rounded-xl border ${existing ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+            {existing ? <Edit3 size={18} className="text-amber-600" /> : <FolderOpen size={18} className="text-blue-600" />}
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">{existing ? 'Modifier le dossier' : 'Ouvrir un nouveau dossier'}</h3>
+            <p className="text-[10px] text-slate-400 font-medium">Renseignez toutes les informations du dossier</p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* TYPE DE RATTACHEMENT */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Type de rattachement *</label>
+            <div className="grid grid-cols-3 gap-2">
+              {LINKED_TYPES.map((lt) => (
+                <button key={lt.id} type="button"
+                  onClick={() => setForm((f) => ({ ...f, linked_type: lt.id }))}
+                  className={`p-3 rounded-xl border-2 text-center transition-all ${form.linked_type === lt.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-200 bg-slate-50'}`}>
+                  <div className="text-xl mb-1">{lt.icon}</div>
+                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-700">{lt.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* INTITULÉ */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Intitulé de la mission *</label>
+            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Ex: Audit financier de souveraineté..."
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+          </div>
+
+          {/* INFORMATIONS CLIENT — uniquement si linked_type = dossier */}
+          {form.linked_type === 'dossier' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 size={11} /> Informations Client / Partenaire Externe
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Raison sociale / Nom du projet</label>
+                  <input value={form.raison_sociale ?? ''} onChange={(e) => setForm((f) => ({ ...f, raison_sociale: e.target.value || null }))}
+                    placeholder="Ex: SARL AGRI-BENIN, Projet EDEN..."
+                    className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Nom du contact principal</label>
+                  <input value={form.contact_nom ?? ''} onChange={(e) => setForm((f) => ({ ...f, contact_nom: e.target.value || null }))}
+                    placeholder="Ex: M. Kofi ASANTE"
+                    className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Phone size={9} /> Email du contact
+                </label>
+                <input type="email" value={form.contact_email ?? ''} onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value || null }))}
+                  placeholder="contact@client.com"
+                  className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all bg-white" />
+              </div>
+            </div>
+          )}
+
+          {/* DESCRIPTION */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mini-description</label>
+            <textarea value={form.mini_description ?? ''} onChange={(e) => setForm((f) => ({ ...f, mini_description: e.target.value || null }))}
+              rows={2} placeholder="Contexte rapide, objectif principal de ce dossier..."
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all resize-none" />
+          </div>
+
+          {/* STRUCTURE */}
+          {currentUser.orgId === 'Tous' && (
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Structure affectée</label>
+              <select value={form.organization_id}
+                onChange={(e) => {
+                  const isC = e.target.value === 'c1111111-1111-1111-1111-111111111111';
+                  setForm((f) => ({ ...f, organization_id: e.target.value, structure_type: isC ? 'CONACCE Chaplains' : 'Cabinet DOUKE', category: isC ? 'project_conacce' : 'project_douke' }));
+                }}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none cursor-pointer bg-white">
+                <option value="d2222222-2222-2222-2222-222222222222">Cabinet DOUKE (Financement)</option>
+                <option value="c1111111-1111-1111-1111-111111111111">CONACCE Chaplains (Terrain)</option>
+              </select>
+            </div>
+          )}
+
+          {/* CATÉGORIE */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Catégorie du dossier *</label>
+            <div className="grid grid-cols-3 gap-2">
+              {cats.map((cat) => (
+                <button key={cat.id} type="button" onClick={() => setForm((f) => ({ ...f, category: cat.id }))}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${form.category === cat.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-200 bg-slate-50'}`}>
+                  <div className="text-lg mb-1">{cat.icon}</div>
+                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-700 leading-tight">{cat.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* PRIORITÉ + STATUT */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Priorité</label>
+              <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
+                <option>Critique</option><option>Haute</option><option>Moyenne</option><option>Basse</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Statut</label>
+              <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
+                <option>En cours</option><option>En retard</option><option>Terminé</option><option>En attente</option><option>Suspendu</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ÉCHÉANCE */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Échéance cible</label>
+            <input type="date" value={form.deadline} onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
+          </div>
+
+          {/* RESPONSABLE */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <UserCheck size={10} /> Responsable du dossier
+            </label>
+            <select value={form.assigned_to ?? ''} onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white cursor-pointer">
+              <option value="">— Non assigné —</option>
+              {collaborators.map((c) => (
+                <option key={c.id} value={c.id}>{c.avatar_emoji} {c.first_name} {c.last_name} ({c.role})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* PROGRESSION */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex justify-between">
+              <span>Progression initiale</span>
+              <span className="text-blue-600">{form.progress_percentage}%</span>
+            </label>
+            <input type="range" min="0" max="100" value={form.progress_percentage}
+              onChange={(e) => setForm((f) => ({ ...f, progress_percentage: parseInt(e.target.value) }))}
+              className="w-full accent-blue-600" />
+          </div>
+        </div>
+
+        {existing && (
+          <div className="mt-5 pt-4 border-t border-slate-100">
+            {!confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-rose-100 text-rose-600 text-xs font-black uppercase tracking-wider hover:bg-rose-50 transition-all">
+                <Trash2 size={14} /> Supprimer ce dossier
+              </button>
+            ) : (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                <p className="text-xs font-black text-rose-700 mb-3 text-center">⚠️ Confirmer la suppression définitive ?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmDelete(false)}
+                    className="flex-1 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-black text-[10px] uppercase hover:bg-slate-50 transition-all">Annuler</button>
+                  <button onClick={() => { onDelete(existing.id); onClose(); }}
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2.5 rounded-xl font-black text-[10px] uppercase shadow-sm transition-all flex items-center justify-center gap-1">
+                    <Trash2 size={12} /> Supprimer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-4">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
+          <button
+            onClick={() => {
+              if (!form.title.trim()) return;
+              onSave({ ...form, id: existing?.id || createRecordId() });
+              onClose();
+            }}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center">
+            <Save size={14} /> {existing ? 'Enregistrer' : 'Créer le dossier'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COLLABORATOR MODAL (inchangé)
+// ============================================================
 function CollaboratorModal({
   isOpen, onClose, onSave, existing, allCollaborators,
 }: {
@@ -1194,24 +1520,12 @@ function CollaboratorModal({
   allCollaborators: Collaborator[];
 }) {
   const defaultForm: Collaborator = {
-    id: '',
-    first_name: '',
-    last_name: '',
-    avatar_emoji: '👤',
-    role: '',
-    profile: 'Junior',
-    organization_id: 'd2222222-2222-2222-2222-222222222222',
-    senior_id: null,
-    email: '',
-    performance: 50,
+    id: '', first_name: '', last_name: '', avatar_emoji: '👤', role: '',
+    profile: 'Junior', organization_id: 'd2222222-2222-2222-2222-222222222222',
+    senior_id: null, email: '', performance: 50,
   };
-
   const [form, setForm] = useState<Collaborator>(defaultForm);
-
-  useEffect(() => {
-    setForm(existing ? { ...existing } : { ...defaultForm, id: '' });
-  }, [existing, isOpen]);
-
+  useEffect(() => { setForm(existing ? { ...existing } : { ...defaultForm, id: '' }); }, [existing, isOpen]);
   if (!isOpen) return null;
 
   const EMOJIS = ['👤', '👑', '💼', '🛡️', '📊', '🎯', '⚡', '🔬', '📐', '🏛️', '🤝', '📌'];
@@ -1305,16 +1619,9 @@ function CollaboratorModal({
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
-          <button
-            onClick={() => {
-              if (!form.first_name || !form.last_name || !form.role) return;
-              onSave({ ...form, id: existing?.id || createRecordId() });
-              onClose();
-            }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center"
-          >
-            <Save size={14} />
-            {existing ? 'Enregistrer les modifications' : 'Créer le collaborateur'}
+          <button onClick={() => { if (!form.first_name || !form.last_name || !form.role) return; onSave({ ...form, id: existing?.id || createRecordId() }); onClose(); }}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center">
+            <Save size={14} />{existing ? 'Enregistrer les modifications' : 'Créer le collaborateur'}
           </button>
         </div>
       </div>
@@ -1322,171 +1629,9 @@ function CollaboratorModal({
   );
 }
 
-function ObjectiveModal({
-  isOpen, onClose, onSave, onDelete, existing, collaborators, currentUser,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: Objective) => void;
-  onDelete: (id: string) => void;
-  existing: Objective | null;
-  collaborators: Collaborator[];
-  currentUser: AuthAccount;
-}) {
-  const defaultForm: Objective = {
-    id: '',
-    title: '',
-    structure_type: 'Cabinet DOUKE',
-    category: 'project_douke',
-    status: 'En cours',
-    priority: 'Haute',
-    deadline: '2026-06-30',
-    progress_percentage: 0,
-    organization_id: 'd2222222-2222-2222-2222-222222222222',
-    assigned_to: '',
-  };
-
-  const [form, setForm] = useState<Objective>(defaultForm);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  useEffect(() => {
-    setForm(existing ? { ...existing } : { ...defaultForm, id: '' });
-    setConfirmDelete(false);
-  }, [existing, isOpen]);
-
-  if (!isOpen) return null;
-
-  const isConacce = form.organization_id === 'c1111111-1111-1111-1111-111111111111';
-  const cats = isConacce ? DOSSIER_CATEGORIES_CONACCE : DOSSIER_CATEGORIES_DOUKE;
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={18} /></button>
-        <div className="flex items-center gap-3 mb-5">
-          <div className={`p-2.5 rounded-xl border ${existing ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
-            {existing ? <Edit3 size={18} className="text-amber-600" /> : <FolderOpen size={18} className="text-blue-600" />}
-          </div>
-          <div>
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">{existing ? 'Modifier le dossier' : 'Ouvrir un nouveau dossier'}</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Renseignez toutes les informations du dossier</p>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Intitulé de la mission *</label>
-            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex: Audit financier de souveraineté..."
-              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
-          </div>
-          {currentUser.orgId === 'Tous' && (
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Structure affectée</label>
-              <select value={form.organization_id}
-                onChange={(e) => {
-                  const isC = e.target.value === 'c1111111-1111-1111-1111-111111111111';
-                  setForm((f) => ({ ...f, organization_id: e.target.value, structure_type: isC ? 'CONACCE Chaplains' : 'Cabinet DOUKE', category: isC ? 'project_conacce' : 'project_douke' }));
-                }}
-                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none cursor-pointer bg-white">
-                <option value="d2222222-2222-2222-2222-222222222222">Cabinet DOUKE (Financement)</option>
-                <option value="c1111111-1111-1111-1111-111111111111">CONACCE Chaplains (Terrain)</option>
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Catégorie du dossier *</label>
-            <div className="grid grid-cols-3 gap-2">
-              {cats.map((cat) => (
-                <button key={cat.id} type="button" onClick={() => setForm((f) => ({ ...f, category: cat.id }))}
-                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${form.category === cat.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-200 bg-slate-50'}`}>
-                  <div className="text-lg mb-1">{cat.icon}</div>
-                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-700 leading-tight">{cat.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Priorité</label>
-              <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
-                <option>Critique</option><option>Haute</option><option>Moyenne</option><option>Basse</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Statut</label>
-              <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
-                <option>En cours</option><option>En retard</option><option>Terminé</option><option>En attente</option><option>Suspendu</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Échéance cible</label>
-            <input type="date" value={form.deadline} onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
-              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-              <UserCheck size={10} /> Responsable du dossier
-            </label>
-            <select value={form.assigned_to ?? ''} onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
-              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white cursor-pointer">
-              <option value="">— Non assigné —</option>
-              {collaborators.map((c) => (
-                <option key={c.id} value={c.id}>{c.avatar_emoji} {c.first_name} {c.last_name} ({c.role})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex justify-between">
-              <span>Progression initiale</span>
-              <span className="text-blue-600">{form.progress_percentage}%</span>
-            </label>
-            <input type="range" min="0" max="100" value={form.progress_percentage}
-              onChange={(e) => setForm((f) => ({ ...f, progress_percentage: parseInt(e.target.value) }))}
-              className="w-full accent-blue-600" />
-          </div>
-        </div>
-        {existing && (
-          <div className="mt-5 pt-4 border-t border-slate-100">
-            {!confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)}
-                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-rose-100 text-rose-600 text-xs font-black uppercase tracking-wider hover:bg-rose-50 transition-all">
-                <Trash2 size={14} /> Supprimer ce dossier
-              </button>
-            ) : (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
-                <p className="text-xs font-black text-rose-700 mb-3 text-center">⚠️ Confirmer la suppression définitive ?</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setConfirmDelete(false)}
-                    className="flex-1 border border-slate-200 text-slate-600 p-2.5 rounded-xl font-black text-[10px] uppercase hover:bg-slate-50 transition-all">Annuler</button>
-                  <button onClick={() => { onDelete(existing.id); onClose(); }}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2.5 rounded-xl font-black text-[10px] uppercase shadow-sm transition-all flex items-center justify-center gap-1">
-                    <Trash2 size={12} /> Supprimer
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="flex gap-3 mt-4">
-          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
-          <button
-            onClick={() => {
-              if (!form.title.trim()) return;
-              onSave({ ...form, id: existing?.id || createRecordId() });
-              onClose();
-            }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center"
-          >
-            <Save size={14} /> {existing ? 'Enregistrer' : 'Créer le dossier'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+// ============================================================
+// REALISATION MODAL (inchangé)
+// ============================================================
 function RealisationModal({
   isOpen, onClose, onSave, objectives, currentUser, collaborators,
 }: {
@@ -1499,12 +1644,8 @@ function RealisationModal({
 }) {
   const defaultForm = { objective_id: '', description: '', date: todayISO(), duration_hours: 1, progress_after: 0 };
   const [form, setForm] = useState(defaultForm);
- const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) { setForm(defaultForm); setSelectedObj(null); }
-  }, [isOpen]);
-
+  const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
+  useEffect(() => { if (!isOpen) { setForm(defaultForm); setSelectedObj(null); } }, [isOpen]);
   if (!isOpen) return null;
 
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
@@ -1546,11 +1687,7 @@ function RealisationModal({
                 </span>
                 <p className="text-[11px] text-slate-500 font-bold mt-1">Progression actuelle : <span className="text-blue-600">{selectedObj.progress_percentage}%</span></p>
               </div>
-              <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
-                selectedObj.status === 'Terminé' ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                : selectedObj.status === 'En retard' ? 'bg-rose-50 text-rose-600 border-rose-100'
-                : 'bg-amber-50 text-amber-600 border-amber-100'
-              }`}>{selectedObj.status}</span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${selectedObj.status === 'Terminé' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : selectedObj.status === 'En retard' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{selectedObj.status}</span>
             </div>
           )}
           <div>
@@ -1591,14 +1728,8 @@ function RealisationModal({
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
-          <button
-            onClick={() => {
-              if (!form.objective_id || !form.description.trim()) return;
-              onSave({ ...form, id: createRecordId(), user_id: currentUser.collaborator_id, validated_by: null });
-              onClose();
-            }}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 justify-center"
-          >
+          <button onClick={() => { if (!form.objective_id || !form.description.trim()) return; onSave({ ...form, id: createRecordId(), user_id: currentUser.collaborator_id, validated_by: null }); onClose(); }}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 justify-center">
             <CheckSquare size={14} /> Enregistrer la réalisation
           </button>
         </div>
@@ -1607,6 +1738,290 @@ function RealisationModal({
   );
 }
 
+// ============================================================
+// BLOC 4 — PLANNING MODAL (nouvelle action planifiée)
+// ============================================================
+function PlannedActionModal({
+  isOpen, onClose, onSave, objectives, collaborators, currentUser,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: PlannedAction) => void;
+  objectives: Objective[];
+  collaborators: Collaborator[];
+  currentUser: AuthAccount;
+}) {
+  const isAdmin = currentUser.role === 'Super-Admin';
+  const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
+  const myJuniorIds = collaborators.filter((c) => c.senior_id === currentUser.collaborator_id).map((c) => c.id);
+
+  const assignableCollabs = (() => {
+    if (isAdmin) return collaborators;
+    if (isSenior) return collaborators.filter((c) => c.id === currentUser.collaborator_id || myJuniorIds.includes(c.id));
+    return collaborators.filter((c) => c.id === currentUser.collaborator_id);
+  })();
+
+  const defaultForm: Omit<PlannedAction, 'id' | 'created_at' | 'updated_at'> = {
+    title: '',
+    description: null,
+    user_id: currentUser.collaborator_id,
+    assigned_to: currentUser.collaborator_id,
+    objective_id: null,
+    linked_type: 'dossier',
+    planned_date: todayISO(),
+    period_type: 'semaine',
+    status: 'planifié',
+    organization_id: currentUser.orgId === 'Tous' ? 'd2222222-2222-2222-2222-222222222222' : currentUser.orgId,
+  };
+
+  const [form, setForm] = useState(defaultForm);
+  useEffect(() => { if (!isOpen) setForm(defaultForm); }, [isOpen]);
+  if (!isOpen) return null;
+
+  const scopedObjectives = (() => {
+    if (isAdmin) return objectives;
+    if (isSenior) {
+      const scopeIds = [currentUser.collaborator_id, ...myJuniorIds];
+      return objectives.filter((o) => scopeIds.includes(o.assigned_to));
+    }
+    return objectives.filter((o) => o.assigned_to === currentUser.collaborator_id);
+  })();
+
+  const LINKED_TYPES = [
+    { id: 'dossier' as const, label: 'Lié à un dossier', icon: '🤝' },
+    { id: 'admin' as const, label: 'Administratif', icon: '📋' },
+    { id: 'autre' as const, label: 'Autre', icon: '📁' },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        <div className="flex items-center gap-3 mb-5">
+          <div className="bg-purple-50 p-2.5 rounded-xl border border-purple-100"><Calendar size={18} className="text-purple-600" /></div>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Planifier une action</h3>
+            <p className="text-[10px] text-slate-400 font-medium">Programmez une action à réaliser</p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Titre de l'action *</label>
+            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Ex: Préparer le rapport mensuel..."
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {LINKED_TYPES.map((lt) => (
+                <button key={lt.id} type="button"
+                  onClick={() => setForm((f) => ({ ...f, linked_type: lt.id, objective_id: lt.id !== 'dossier' ? null : f.objective_id }))}
+                  className={`p-2.5 rounded-xl border-2 text-center transition-all ${form.linked_type === lt.id ? 'border-purple-500 bg-purple-50' : 'border-slate-100 hover:border-slate-200 bg-slate-50'}`}>
+                  <div className="text-lg mb-1">{lt.icon}</div>
+                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-700">{lt.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {form.linked_type === 'dossier' && (
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Dossier lié</label>
+              <select value={form.objective_id ?? ''} onChange={(e) => setForm((f) => ({ ...f, objective_id: e.target.value || null }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white cursor-pointer">
+                <option value="">— Aucun dossier spécifique —</option>
+                {scopedObjectives.map((o) => <option key={o.id} value={o.id}>{getCategoryInfo(o.category)?.icon} {o.title}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Description</label>
+            <textarea value={form.description ?? ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value || null }))} rows={2}
+              placeholder="Détails de l'action à réaliser..."
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all resize-none" />
+          </div>
+
+          {(isAdmin || isSenior) && (
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Assigné à</label>
+              <select value={form.assigned_to} onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white cursor-pointer">
+                {assignableCollabs.map((c) => (
+                  <option key={c.id} value={c.id}>{c.avatar_emoji} {c.first_name} {c.last_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Date planifiée</label>
+              <input type="date" value={form.planned_date} onChange={(e) => setForm((f) => ({ ...f, planned_date: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Période</label>
+              <select value={form.period_type} onChange={(e) => setForm((f) => ({ ...f, period_type: e.target.value as 'semaine' | 'mois' }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
+                <option value="semaine">Cette semaine</option>
+                <option value="mois">Ce mois</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
+          <button
+            onClick={() => {
+              if (!form.title.trim()) return;
+              onSave({ ...form, id: createRecordId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+              onClose();
+            }}
+            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 justify-center">
+            <Save size={14} /> Planifier
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// BLOC 4 — VUE PLANIFICATION RECONSTRUITE
+// ============================================================
+function PlanificationView({
+  plannedActions, objectives, collaborators, currentUser, onAdd, onUpdateStatus, onDelete,
+}: {
+  plannedActions: PlannedAction[];
+  objectives: Objective[];
+  collaborators: Collaborator[];
+  currentUser: AuthAccount;
+  onAdd: () => void;
+  onUpdateStatus: (id: string, status: PlannedAction['status']) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [periodFilter, setPeriodFilter] = useState<'semaine' | 'mois'>('semaine');
+  const isAdmin = currentUser.role === 'Super-Admin';
+  const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
+  const myJuniorIds = collaborators.filter((c) => c.senior_id === currentUser.collaborator_id).map((c) => c.id);
+
+  // RBAC filtre sur les actions visibles
+  const scopedActions = (() => {
+    if (isAdmin) return plannedActions;
+    if (isSenior) {
+      const scopeIds = [currentUser.collaborator_id, ...myJuniorIds];
+      return plannedActions.filter((a) => scopeIds.includes(a.assigned_to));
+    }
+    return plannedActions.filter((a) => a.assigned_to === currentUser.collaborator_id);
+  })();
+
+  const displayActions = scopedActions.filter((a) => a.period_type === periodFilter);
+
+  const statusColors = {
+    'planifié': 'bg-slate-50 text-slate-600 border-slate-200',
+    'en cours': 'bg-amber-50 text-amber-700 border-amber-200',
+    'fait': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+
+  const linkedTypeIcons = { dossier: '🤝', admin: '📋', autre: '📁' };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planification des Actions</h3>
+          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+            {isAdmin ? 'Vue consolidée — toutes les équipes' : isSenior ? 'Votre équipe et vos juniors' : 'Vos actions personnelles'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+            {(['semaine', 'mois'] as const).map((p) => (
+              <button key={p} onClick={() => setPeriodFilter(p)}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${periodFilter === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {p === 'semaine' ? 'Cette semaine' : 'Ce mois'}
+              </button>
+            ))}
+          </div>
+          <button onClick={onAdd}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2">
+            <Plus size={14} /> Planifier une action
+          </button>
+        </div>
+      </div>
+
+      {displayActions.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+          <p className="text-4xl mb-3">📅</p>
+          <p className="font-black text-slate-400 text-sm uppercase tracking-wider">Aucune action planifiée</p>
+          <p className="text-[11px] text-slate-300 font-medium mt-1">pour {periodFilter === 'semaine' ? 'cette semaine' : 'ce mois'}</p>
+          <button onClick={onAdd} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all inline-flex items-center gap-2">
+            <Plus size={14} /> Planifier maintenant
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {displayActions.map((action) => {
+            const assignee = collaborators.find((c) => c.id === action.assigned_to);
+            const linkedObj = action.objective_id ? objectives.find((o) => o.id === action.objective_id) : null;
+            const daysLeft = Math.ceil((new Date(action.planned_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            return (
+              <div key={action.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <span className="text-base">{linkedTypeIcons[action.linked_type]}</span>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${statusColors[action.status]}`}>
+                        {action.status}
+                      </span>
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${daysLeft < 0 ? 'bg-rose-50 text-rose-700 border-rose-100' : daysLeft === 0 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                        {daysLeft < 0 ? `J+${Math.abs(daysLeft)}` : daysLeft === 0 ? "Aujourd'hui" : `J-${daysLeft}`}
+                      </span>
+                    </div>
+                    <p className="font-black text-slate-900 text-sm">{action.title}</p>
+                    {action.description && <p className="text-[11px] text-slate-500 font-medium mt-0.5">{action.description}</p>}
+                    {linkedObj && (
+                      <p className="text-[10px] text-blue-600 font-bold mt-1">↳ {linkedObj.title}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="text-[10px] text-slate-400 font-bold">{formatDate(action.planned_date)}</span>
+                      {assignee && (
+                        <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                          {assignee.avatar_emoji} {assignee.first_name} {assignee.last_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    {action.status !== 'fait' && (
+                      <button
+                        onClick={() => onUpdateStatus(action.id, action.status === 'planifié' ? 'en cours' : 'fait')}
+                        className={`text-[10px] font-black px-3 py-1.5 rounded-lg border transition-all ${action.status === 'planifié' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
+                        {action.status === 'planifié' ? '▶ Démarrer' : '✓ Marquer fait'}
+                      </button>
+                    )}
+                    <button onClick={() => onDelete(action.id)}
+                      className="text-[10px] font-black px-3 py-1.5 rounded-lg border bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-1 justify-center">
+                      <Trash2 size={10} /> Suppr.
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// PRINT MODAL (inchangé)
+// ============================================================
 function PrintModal({
   isOpen, onClose, collaborators, objectives, realisations, currentUser,
 }: {
@@ -1621,7 +2036,6 @@ function PrintModal({
   const [filterUser, setFilterUser] = useState('all');
   const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; });
   const [dateTo, setDateTo] = useState(todayISO);
-
   if (!isOpen) return null;
 
   const isJunior = currentUser.role === 'Junior';
@@ -1638,49 +2052,12 @@ function PrintModal({
     const content = printType === 'realisations' ? filteredRealisations : filteredObjectives;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
     printWindow.document.write(`
       <html><head><title>Cabinet DOUKE — ${printType === 'realisations' ? 'Réalisations' : 'Prévisions'}</title>
-      <style>
-        * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-        body { padding: 32px; color: #1e293b; }
-        .header { border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .brand { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #0f172a; }
-        .subtitle { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
-        .meta { text-align: right; font-size: 11px; color: #64748b; }
-        .section-title { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: #1e293b; border-left: 4px solid #2563eb; padding-left: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-        td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-        .total-row td { font-weight: 900; background: #f1f5f9; border-top: 2px solid #e2e8f0; }
-        .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
-        @media print { body { padding: 16px; } }
-      </style></head><body>
-      <div class="header">
-        <div><div class="brand">🏛️ Cabinet DOUKE</div><div class="subtitle">Rapport — ${printType === 'realisations' ? 'Journal des Réalisations' : 'Tableau des Prévisions'}</div></div>
-        <div class="meta"><strong>Période :</strong> ${formatDate(dateFrom)} → ${formatDate(dateTo)}<br/><strong>Collaborateur :</strong> ${targetUser ? targetUser.first_name + ' ' + targetUser.last_name : 'Tous'}<br/><strong>Généré le :</strong> ${formatDate(todayISO())}</div>
-      </div>
-      ${printType === 'realisations' ? `
-        <div class="section-title">Réalisations enregistrées (${(content as Realisation[]).length})</div>
-        <table><thead><tr><th>#</th><th>Date</th><th>Collaborateur</th><th>Dossier</th><th>Action effectuée</th><th>Durée (h)</th><th>Progression</th></tr></thead><tbody>
-        ${(content as Realisation[]).map((r, i) => {
-          const collab = collaborators.find((c) => c.id === r.user_id);
-          const obj = objectives.find((o) => o.id === r.objective_id);
-          return `<tr><td>${i + 1}</td><td>${formatDate(r.date)}</td><td>${collab ? collab.first_name + ' ' + collab.last_name : '—'}</td><td>${obj ? obj.title : '—'}</td><td>${r.description}</td><td>${r.duration_hours}h</td><td><strong>${r.progress_after}%</strong></td></tr>`;
-        }).join('')}
-        <tr class="total-row"><td colspan="5">TOTAL</td><td>${(content as Realisation[]).reduce((s, r) => s + r.duration_hours, 0)}h</td><td>${(content as Realisation[]).length} action(s)</td></tr>
-        </tbody></table>
-      ` : `
-        <div class="section-title">Prévisions & Objectifs (${(content as Objective[]).length})</div>
-        <table><thead><tr><th>#</th><th>Dossier / Mission</th><th>Responsable</th><th>Structure</th><th>Priorité</th><th>Statut</th><th>Échéance</th><th>Avancement</th></tr></thead><tbody>
-        ${(content as Objective[]).map((o, i) => {
-          const collab = collaborators.find((c) => c.id === o.assigned_to);
-          return `<tr><td>${i + 1}</td><td><strong>${o.title}</strong></td><td>${collab ? collab.first_name + ' ' + collab.last_name : '—'}</td><td>${o.structure_type}</td><td>${o.priority}</td><td>${o.status}</td><td>${formatDate(o.deadline)}</td><td><strong>${o.progress_percentage}%</strong></td></tr>`;
-        }).join('')}
-        </tbody></table>
-      `}
-      <div class="footer">Cabinet DOUKE © 2026 — Document confidentiel — Diffusion interne uniquement</div>
-      </body></html>
+      <style>* { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; } body { padding: 32px; color: #1e293b; } .header { border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; } .brand { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #0f172a; } .subtitle { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; } .meta { text-align: right; font-size: 11px; color: #64748b; } .section-title { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: #1e293b; border-left: 4px solid #2563eb; padding-left: 10px; } table { width: 100%; border-collapse: collapse; font-size: 11px; } th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; } td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; } .total-row td { font-weight: 900; background: #f1f5f9; border-top: 2px solid #e2e8f0; } .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; text-transform: uppercase; letter-spacing: 1px; } @media print { body { padding: 16px; } }</style></head><body>
+      <div class="header"><div><div class="brand">🏛️ Cabinet DOUKE</div><div class="subtitle">Rapport — ${printType === 'realisations' ? 'Journal des Réalisations' : 'Tableau des Prévisions'}</div></div><div class="meta"><strong>Période :</strong> ${formatDate(dateFrom)} → ${formatDate(dateTo)}<br/><strong>Collaborateur :</strong> ${targetUser ? targetUser.first_name + ' ' + targetUser.last_name : 'Tous'}<br/><strong>Généré le :</strong> ${formatDate(todayISO())}</div></div>
+      ${printType === 'realisations' ? `<div class="section-title">Réalisations enregistrées (${(content as Realisation[]).length})</div><table><thead><tr><th>#</th><th>Date</th><th>Collaborateur</th><th>Dossier</th><th>Action effectuée</th><th>Durée (h)</th><th>Progression</th></tr></thead><tbody>${(content as Realisation[]).map((r, i) => { const collab = collaborators.find((c) => c.id === r.user_id); const obj = objectives.find((o) => o.id === r.objective_id); return `<tr><td>${i + 1}</td><td>${formatDate(r.date)}</td><td>${collab ? collab.first_name + ' ' + collab.last_name : '—'}</td><td>${obj ? obj.title : '—'}</td><td>${r.description}</td><td>${r.duration_hours}h</td><td><strong>${r.progress_after}%</strong></td></tr>`; }).join('')}<tr class="total-row"><td colspan="5">TOTAL</td><td>${(content as Realisation[]).reduce((s, r) => s + r.duration_hours, 0)}h</td><td>${(content as Realisation[]).length} action(s)</td></tr></tbody></table>` : `<div class="section-title">Prévisions & Objectifs (${(content as Objective[]).length})</div><table><thead><tr><th>#</th><th>Dossier / Mission</th><th>Client</th><th>Responsable</th><th>Structure</th><th>Priorité</th><th>Statut</th><th>Échéance</th><th>Avancement</th></tr></thead><tbody>${(content as Objective[]).map((o, i) => { const collab = collaborators.find((c) => c.id === o.assigned_to); return `<tr><td>${i + 1}</td><td><strong>${o.title}</strong></td><td>${o.raison_sociale || '—'}</td><td>${collab ? collab.first_name + ' ' + collab.last_name : '—'}</td><td>${o.structure_type}</td><td>${o.priority}</td><td>${o.status}</td><td>${formatDate(o.deadline)}</td><td><strong>${o.progress_percentage}%</strong></td></tr>`; }).join('')}</tbody></table>`}
+      <div class="footer">Cabinet DOUKE © 2026 — Document confidentiel — Diffusion interne uniquement</div></body></html>
     `);
     printWindow.document.close();
     printWindow.print();
@@ -1755,11 +2132,13 @@ export default function FullyLoadedPremiumDashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [realisations, setRealisations] = useState<Realisation[]>([]);
   const [remarques, setRemarques] = useState<Remarque[]>([]);
+  const [plannedActions, setPlannedActions] = useState<PlannedAction[]>([]);
 
   const [isObjectiveModalOpen, setIsObjectiveModalOpen] = useState(false);
   const [isCollaboratorModalOpen, setIsCollaboratorModalOpen] = useState(false);
   const [isRealisationModalOpen, setIsRealisationModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPlannedActionModalOpen, setIsPlannedActionModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState<Objective | null>(null);
   const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
 
@@ -1787,20 +2166,15 @@ export default function FullyLoadedPremiumDashboard() {
 
   const calculateMetrics = (targetObjectives: Objective[]) => {
     const total = targetObjectives.length;
-    const avg = total > 0
-      ? Math.round(targetObjectives.reduce((a, o) => a + o.progress_percentage, 0) / total)
-      : 0;
+    const avg = total > 0 ? Math.round(targetObjectives.reduce((a, o) => a + o.progress_percentage, 0) / total) : 0;
     const conacceObjs = targetObjectives.filter((o) => o.organization_id === 'c1111111-1111-1111-1111-111111111111');
     const doukeObjs = targetObjectives.filter((o) => o.organization_id === 'd2222222-2222-2222-2222-222222222222');
     setStats({
-      totalObjectives: total,
-      globalProgress: avg,
+      totalObjectives: total, globalProgress: avg,
       lateTasks: targetObjectives.filter((o) => o.status === 'En retard').length,
       pendingTasks: targetObjectives.filter((o) => o.status === 'En cours').length,
-      conacceProgress: conacceObjs.length > 0
-        ? Math.round(conacceObjs.reduce((a, o) => a + o.progress_percentage, 0) / conacceObjs.length) : 0,
-      doukeProgress: doukeObjs.length > 0
-        ? Math.round(doukeObjs.reduce((a, o) => a + o.progress_percentage, 0) / doukeObjs.length) : 0,
+      conacceProgress: conacceObjs.length > 0 ? Math.round(conacceObjs.reduce((a, o) => a + o.progress_percentage, 0) / conacceObjs.length) : 0,
+      doukeProgress: doukeObjs.length > 0 ? Math.round(doukeObjs.reduce((a, o) => a + o.progress_percentage, 0) / doukeObjs.length) : 0,
     });
   };
 
@@ -1816,18 +2190,49 @@ export default function FullyLoadedPremiumDashboard() {
         const response = await fetch('/api/dashboard', { cache: 'no-store', signal: controller.signal });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload?.error || 'Erreur de chargement');
+
         const collabs = (payload.collaborators ?? []) as Collaborator[];
         const allObjectives = (payload.objectives ?? []) as Objective[];
         const allActivities = (payload.activities ?? []) as Activity[];
         const allRealisations = (payload.realisations ?? []) as Realisation[];
         const allRemarques = (payload.remarques ?? []) as Remarque[];
-        const visibleObjectives = currentUser.orgId === 'Tous' ? allObjectives : allObjectives.filter((o) => o.organization_id === currentUser.orgId);
-        const visibleRealisations = currentUser.orgId === 'Tous' ? allRealisations : allRealisations.filter((r) => r.user_id === currentUser.collaborator_id);
+        const allPlannedActions = (payload.planned_actions ?? []) as PlannedAction[];
+
+        // BLOC 2 — Filtre RBAC côté client selon le rôle
+        const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
+        const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
+
+        let visibleObjectives: Objective[];
+        let visibleRealisations: Realisation[];
+        let visiblePlannedActions: PlannedAction[];
+
+        if (currentUser.role === 'Super-Admin') {
+          // Admin voit tout, filtré par structure si scope sélectionné
+          visibleObjectives = currentUser.orgId === 'Tous'
+            ? allObjectives
+            : allObjectives.filter((o) => o.organization_id === currentUser.orgId);
+          visibleRealisations = allRealisations;
+          visiblePlannedActions = allPlannedActions;
+        } else if (isSenior) {
+          // Senior voit uniquement lui + ses juniors directs
+          const myJuniorIds = collabs.filter((c) => c.senior_id === currentUser.collaborator_id).map((c) => c.id);
+          const myScope = [currentUser.collaborator_id, ...myJuniorIds];
+          visibleObjectives = allObjectives.filter((o) => myScope.includes(o.assigned_to));
+          visibleRealisations = allRealisations.filter((r) => myScope.includes(r.user_id));
+          visiblePlannedActions = allPlannedActions.filter((a) => myScope.includes(a.assigned_to));
+        } else {
+          // Junior/Secrétaire voit uniquement ses propres données
+          visibleObjectives = allObjectives.filter((o) => o.assigned_to === currentUser.collaborator_id);
+          visibleRealisations = allRealisations.filter((r) => r.user_id === currentUser.collaborator_id);
+          visiblePlannedActions = allPlannedActions.filter((a) => a.assigned_to === currentUser.collaborator_id);
+        }
+
         setCollaborators(collabs);
         setObjectives(visibleObjectives);
         setActivities(allActivities);
         setRealisations(visibleRealisations);
         setRemarques(allRemarques);
+        setPlannedActions(visiblePlannedActions);
         calculateMetrics(visibleObjectives);
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
@@ -1847,202 +2252,176 @@ export default function FullyLoadedPremiumDashboard() {
       body: JSON.stringify({ action, table, data, id }),
     });
     const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Erreur API');
-    }
+    if (!response.ok) throw new Error(payload?.error || 'Erreur API');
     return payload.data as T;
   };
 
   const handleUpdateProgress = async (id: string, currentProgress: number, currentTitle: string, increment: number) => {
-  const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
-  const newStatus = computeStatus(newProgress);
-  try {
-    await apiRequest('update', 'objectives', {
-      progress_percentage: newProgress,
-      status: newStatus,
-    }, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
-      date: todayISO(),
-      type: 'update',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur update progress:', err);
-  }
-};
-
-  const handleUpdateProgressDirect = (id: string, newProgress: number) => {
+    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
     const newStatus = computeStatus(newProgress);
-    setObjectives((prev) => {
-      const updated = prev.map((o) => o.id === id ? { ...o, progress_percentage: newProgress, status: newStatus } : o);
-      calculateMetrics(updated);
-      return updated;
-    });
-  };
-
-  const handleSaveObjective = async (formData: Objective) => {
-  const isEdit = objectives.find((o) => o.id === formData.id);
-  try {
-    if (isEdit) {
-      await apiRequest('update', 'objectives', {
-        title: formData.title,
-        structure_type: formData.structure_type,
-        category: formData.category,
-        status: formData.status,
-        priority: formData.priority,
-        deadline: formData.deadline,
-        progress_percentage: formData.progress_percentage,
-        organization_id: formData.organization_id,
-        assigned_to: formData.assigned_to || null,
-      }, formData.id);
-    } else {
-      await apiRequest('insert', 'objectives', {
-        title: formData.title,
-        structure_type: formData.structure_type,
-        category: formData.category,
-        status: formData.status,
-        priority: formData.priority,
-        deadline: formData.deadline,
-        progress_percentage: formData.progress_percentage,
-        organization_id: formData.organization_id,
-        assigned_to: formData.assigned_to || null,
-      });
-    }
-    // Log activité
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
-      date: todayISO(),
-      type: isEdit ? 'update' : 'creation',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur save objective:', err);
-  }
-  setEditingObjective(null);
-};
-
-  const handleDeleteObjective = async (id: string) => {
-  const obj = objectives.find((o) => o.id === id);
-  try {
-    await apiRequest('delete', 'objectives', undefined, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
-      date: todayISO(),
-      type: 'deletion',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur delete objective:', err);
-  }
-};
-
-  const handleSaveCollaborator = async (formData: Collaborator) => {
-  const isEdit = collaborators.find((c) => c.id === formData.id);
-  try {
-    if (isEdit) {
-      await apiRequest('update', 'collaborators', {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        avatar_emoji: formData.avatar_emoji,
-        role: formData.role,
-        profile: formData.profile,
-        performance: formData.performance,
-        organization_id: formData.organization_id,
-        senior_id: formData.senior_id || null,
-        email: formData.email,
-      }, formData.id);
-    } else {
-      const insertPayload = {
-        id: formData.id,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        avatar_emoji: formData.avatar_emoji,
-        role: formData.role,
-        profile: formData.profile,
-        performance: formData.performance,
-        organization_id: formData.organization_id,
-        senior_id: formData.senior_id || null,
-        email: formData.email,
-      };
-      const insertedCollaborator = await apiRequest<Collaborator>('insert', 'collaborators', insertPayload);
-      setCollaborators((prev) => {
-        const next = prev.some((c) => c.id === insertedCollaborator.id)
-          ? prev.map((c) => (c.id === insertedCollaborator.id ? insertedCollaborator : c))
-          : [insertedCollaborator, ...prev];
-        return next;
-      });
+    try {
+      await apiRequest('update', 'objectives', { progress_percentage: newProgress, status: newStatus }, id);
       await apiRequest('insert', 'activities', {
         user_id: currentUser?.collaborator_id || null,
-        description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
-        date: todayISO(),
-        type: 'creation',
+        description: `${currentUser?.name} a mis à jour "${currentTitle}" → ${newProgress}%`,
+        date: todayISO(), type: 'update',
       });
-      return;
-    }
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a modifié le collaborateur ${formData.first_name} ${formData.last_name}`,
-      date: todayISO(),
-      type: 'update',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur save collaborator:', err);
-  }
-  setEditingCollaborator(null);
-};
-  
+      triggerRefresh();
+    } catch (err) { console.error('Erreur update progress:', err); }
+  };
+
+  // BLOC 5 — handleSaveObjective avec nouveaux champs
+  const handleSaveObjective = async (formData: Objective) => {
+    const isEdit = objectives.find((o) => o.id === formData.id);
+    try {
+      const payload = {
+        title: formData.title,
+        structure_type: formData.structure_type,
+        category: formData.category,
+        status: formData.status,
+        priority: formData.priority,
+        deadline: formData.deadline,
+        progress_percentage: formData.progress_percentage,
+        organization_id: formData.organization_id,
+        assigned_to: formData.assigned_to || null,
+        // Nouveaux champs
+        raison_sociale: formData.raison_sociale || null,
+        mini_description: formData.mini_description || null,
+        contact_nom: formData.contact_nom || null,
+        contact_email: formData.contact_email || null,
+        linked_type: formData.linked_type,
+        linked_dossier_id: formData.linked_dossier_id || null,
+      };
+      if (isEdit) {
+        await apiRequest('update', 'objectives', payload, formData.id);
+      } else {
+        await apiRequest('insert', 'objectives', payload);
+      }
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} ${isEdit ? 'a modifié' : 'a ouvert'} le dossier "${formData.title}"`,
+        date: todayISO(), type: isEdit ? 'update' : 'creation',
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur save objective:', err); }
+    setEditingObjective(null);
+  };
+
+  const handleDeleteObjective = async (id: string) => {
+    const obj = objectives.find((o) => o.id === id);
+    try {
+      await apiRequest('delete', 'objectives', undefined, id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a supprimé le dossier "${obj?.title}"`,
+        date: todayISO(), type: 'deletion',
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur delete objective:', err); }
+  };
+
+  const handleSaveCollaborator = async (formData: Collaborator) => {
+    const isEdit = collaborators.find((c) => c.id === formData.id);
+    try {
+      const payload = {
+        first_name: formData.first_name, last_name: formData.last_name,
+        avatar_emoji: formData.avatar_emoji, role: formData.role, profile: formData.profile,
+        performance: formData.performance, organization_id: formData.organization_id,
+        senior_id: formData.senior_id || null, email: formData.email,
+      };
+      if (isEdit) {
+        await apiRequest('update', 'collaborators', payload, formData.id);
+      } else {
+        const inserted = await apiRequest<Collaborator>('insert', 'collaborators', { id: formData.id, ...payload });
+        setCollaborators((prev) => prev.some((c) => c.id === (inserted as Collaborator).id)
+          ? prev.map((c) => c.id === (inserted as Collaborator).id ? inserted as Collaborator : c)
+          : [inserted as Collaborator, ...prev]);
+        await apiRequest('insert', 'activities', {
+          user_id: currentUser?.collaborator_id || null,
+          description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
+          date: todayISO(), type: 'creation',
+        });
+        return;
+      }
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a modifié le collaborateur ${formData.first_name} ${formData.last_name}`,
+        date: todayISO(), type: 'update',
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur save collaborator:', err); }
+    setEditingCollaborator(null);
+  };
+
   const handleDeleteCollaborator = async (id: string) => {
-  const collab = collaborators.find((c) => c.id === id);
-  try {
-    await apiRequest('delete', 'collaborators', undefined, id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
-      date: todayISO(),
-      type: 'deletion',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur delete collaborator:', err);
-  }
-};
+    const collab = collaborators.find((c) => c.id === id);
+    try {
+      await apiRequest('delete', 'collaborators', undefined, id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a supprimé le collaborateur ${collab?.first_name} ${collab?.last_name}`,
+        date: todayISO(), type: 'deletion',
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur delete collaborator:', err); }
+  };
 
   const handleSaveRealisation = async (formData: Realisation) => {
-  try {
-    await apiRequest('insert', 'realisations', {
-      id: formData.id,
-      user_id: currentUser?.collaborator_id || null,
-      objective_id: formData.objective_id,
-      description: formData.description,
-      date: formData.date,
-      duration_hours: formData.duration_hours,
-      progress_after: formData.progress_after,
-      validated_by: null,
-    });
-    // Met à jour la progression de l'objectif
-    if (formData.objective_id && formData.progress_after !== undefined) {
-      await apiRequest('update', 'objectives', {
-        progress_percentage: formData.progress_after,
-        status: computeStatus(formData.progress_after),
-      }, formData.objective_id);
-    }
-    const obj = objectives.find((o) => o.id === formData.objective_id);
-    await apiRequest('insert', 'activities', {
-      user_id: currentUser?.collaborator_id || null,
-      description: `${currentUser?.name} a enregistré une réalisation sur "${obj?.title || 'un dossier'}"`,
-      date: todayISO(),
-      type: 'realisation',
-    });
-    triggerRefresh();
-  } catch (err) {
-    console.error('Erreur save realisation:', err);
-  }
-};
+    try {
+      await apiRequest('insert', 'realisations', {
+        id: formData.id, user_id: currentUser?.collaborator_id || null,
+        objective_id: formData.objective_id, description: formData.description,
+        date: formData.date, duration_hours: formData.duration_hours,
+        progress_after: formData.progress_after, validated_by: null,
+      });
+      if (formData.objective_id && formData.progress_after !== undefined) {
+        await apiRequest('update', 'objectives', {
+          progress_percentage: formData.progress_after,
+          status: computeStatus(formData.progress_after),
+        }, formData.objective_id);
+      }
+      const obj = objectives.find((o) => o.id === formData.objective_id);
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name} a enregistré une réalisation sur "${obj?.title || 'un dossier'}"`,
+        date: todayISO(), type: 'realisation',
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur save realisation:', err); }
+  };
+
+  const handleSavePlannedAction = async (formData: PlannedAction) => {
+    try {
+      await apiRequest('insert', 'planned_actions', {
+        id: formData.id,
+        title: formData.title,
+        description: formData.description || null,
+        user_id: currentUser?.collaborator_id || null,
+        assigned_to: formData.assigned_to,
+        objective_id: formData.objective_id || null,
+        linked_type: formData.linked_type,
+        planned_date: formData.planned_date,
+        period_type: formData.period_type,
+        status: formData.status,
+        organization_id: formData.organization_id,
+      });
+      triggerRefresh();
+    } catch (err) { console.error('Erreur save planned action:', err); }
+  };
+
+  const handleUpdatePlannedActionStatus = async (id: string, status: PlannedAction['status']) => {
+    try {
+      await apiRequest('update', 'planned_actions', { status }, id);
+      triggerRefresh();
+    } catch (err) { console.error('Erreur update planned action status:', err); }
+  };
+
+  const handleDeletePlannedAction = async (id: string) => {
+    try {
+      await apiRequest('delete', 'planned_actions', undefined, id);
+      triggerRefresh();
+    } catch (err) { console.error('Erreur delete planned action:', err); }
+  };
 
   if (!isAuthenticated || !currentUser) return <LoginScreen onLogin={handleLogin} />;
 
@@ -2054,7 +2433,7 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Tableau de bord', view: 'Tableau de bord', icon: <LayoutDashboard size={20} />, show: true },
     { label: 'Objectifs & Missions', view: 'Objectifs', icon: <ClipboardList size={20} />, show: true },
     { label: 'Réalisations', view: 'Réalisations', icon: <PenLine size={20} />, show: true },
-    { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: !isJuniorOrSecretary },
+    { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
   ].filter((n) => n.show);
 
@@ -2097,11 +2476,7 @@ export default function FullyLoadedPremiumDashboard() {
           <nav className="p-4 space-y-1.5">
             {navItems.map((item, idx) => (
               <button key={idx} onClick={() => setCurrentView(item.view)}
-                className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                  currentView === item.view
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400'
-                    : 'hover:bg-slate-800/60 hover:text-white text-slate-400'
-                }`}>
+                className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${currentView === item.view ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400' : 'hover:bg-slate-800/60 hover:text-white text-slate-400'}`}>
                 {item.icon}<span>{item.label}</span>
               </button>
             ))}
@@ -2161,130 +2536,58 @@ export default function FullyLoadedPremiumDashboard() {
         </header>
 
         <div className="p-8 space-y-8">
-  {loading ? (
-    <div className="flex items-center justify-center h-64">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-        <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
-      </div>
-    </div>
-  ) : (
-    <>
-      {currentView === 'Tableau de bord' && isAdmin && (
-        <AdminDashboard
-          objectives={displayObjectives}
-          collaborators={collaborators}
-          activities={activities}
-          realisations={realisations}
-          stats={stats}
-          currentStructure={currentStructure}
-          setCurrentView={setCurrentView}
-          currentUser={currentUser}
-        />
-      )}
-      {currentView === 'Tableau de bord' && isSenior && (
-        <SeniorDashboard
-          objectives={objectives}
-          collaborators={collaborators}
-          realisations={realisations}
-          remarques={remarques}
-          stats={stats}
-          currentUser={currentUser}
-        />
-      )}
-      {currentView === 'Tableau de bord' && isJuniorOrSecretary && (
-        <JuniorDashboard
-          objectives={objectives}
-          collaborators={collaborators}
-          realisations={realisations}
-          remarques={remarques}
-          currentUser={currentUser}
-          onSaisirRealisation={() => setIsRealisationModalOpen(true)}
-        />
-      )}
-      {currentView === 'Objectifs' && (
-        <ObjectifsView
-          objectives={objectives}
-          collaborators={collaborators}
-          currentUser={currentUser}
-          onAddObjective={() => { setEditingObjective(null); setIsObjectiveModalOpen(true); }}
-          onEditObjective={(obj) => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
-          onDeleteObjective={handleDeleteObjective}
-          onUpdateProgress={handleUpdateProgress}
-          filterCategory={filterCategory}
-          setFilterCategory={setFilterCategory}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
-      )}
-      {currentView === 'Réalisations' && (
-        <RealisationsView
-          realisations={realisations}
-          objectives={objectives}
-          collaborators={collaborators}
-          currentUser={currentUser}
-          onAdd={() => setIsRealisationModalOpen(true)}
-        />
-      )}
-      {currentView === 'Planification' && (
-        <div className="space-y-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">Planification des dossiers</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Vue simple des échéances à venir, triée par date cible.</p>
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-sm font-black text-slate-400 uppercase tracking-wider">Chargement des données...</p>
+              </div>
             </div>
-            <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">{objectives.length} dossier(s)</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {objectives
-              .slice()
-              .sort((a, b) => a.deadline.localeCompare(b.deadline))
-              .map((obj) => {
-                const daysLeft = Math.ceil((new Date(obj.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                return (
-                  <div key={obj.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-900 text-sm truncate">{obj.title}</p>
-                        <p className="text-[10px] text-slate-400 font-bold mt-1">Échéance : {formatDate(obj.deadline)}</p>
-                      </div>
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${daysLeft <= 0 ? 'bg-rose-50 text-rose-700 border-rose-100' : daysLeft <= 7 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                        {daysLeft <= 0 ? 'À traiter' : `J-${daysLeft}`}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        <span>Structure</span>
-                        <span>Statut</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                        <span>{obj.structure_type}</span>
-                        <span>{obj.status}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-3">
-                        <div className="bg-gradient-to-r from-blue-500 to-emerald-500 h-full" style={{ width: `${obj.progress_percentage}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+          ) : (
+            <>
+              {currentView === 'Tableau de bord' && isAdmin && (
+                <AdminDashboard objectives={displayObjectives} collaborators={collaborators} activities={activities}
+                  realisations={realisations} stats={stats} currentStructure={currentStructure}
+                  setCurrentView={setCurrentView} currentUser={currentUser} />
+              )}
+              {currentView === 'Tableau de bord' && isSenior && (
+                <SeniorDashboard objectives={objectives} collaborators={collaborators} realisations={realisations}
+                  remarques={remarques} stats={stats} currentUser={currentUser} />
+              )}
+              {currentView === 'Tableau de bord' && isJuniorOrSecretary && (
+                <JuniorDashboard objectives={objectives} collaborators={collaborators} realisations={realisations}
+                  remarques={remarques} currentUser={currentUser} onSaisirRealisation={() => setIsRealisationModalOpen(true)} />
+              )}
+              {currentView === 'Objectifs' && (
+                <ObjectifsView objectives={objectives} collaborators={collaborators} currentUser={currentUser}
+                  onAddObjective={() => { setEditingObjective(null); setIsObjectiveModalOpen(true); }}
+                  onEditObjective={(obj) => { setEditingObjective(obj); setIsObjectiveModalOpen(true); }}
+                  onDeleteObjective={handleDeleteObjective} onUpdateProgress={handleUpdateProgress}
+                  filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+                  searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+              )}
+              {currentView === 'Réalisations' && (
+                <RealisationsView realisations={realisations} objectives={objectives} collaborators={collaborators}
+                  currentUser={currentUser} onAdd={() => setIsRealisationModalOpen(true)} />
+              )}
+              {currentView === 'Planification' && (
+                <PlanificationView
+                  plannedActions={plannedActions} objectives={objectives} collaborators={collaborators}
+                  currentUser={currentUser}
+                  onAdd={() => setIsPlannedActionModalOpen(true)}
+                  onUpdateStatus={handleUpdatePlannedActionStatus}
+                  onDelete={handleDeletePlannedAction} />
+              )}
+              {currentView === 'Équipe' && (
+                <EquipeView collaborators={collaborators} objectives={objectives} realisations={realisations}
+                  currentUser={currentUser}
+                  onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
+                  onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
+                  onDeleteCollaborator={handleDeleteCollaborator} />
+              )}
+            </>
+          )}
         </div>
-      )}
-      {currentView === 'Équipe' && (
-        <EquipeView
-          collaborators={collaborators}
-          objectives={objectives}
-          realisations={realisations}
-          currentUser={currentUser}
-          onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
-          onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
-          onDeleteCollaborator={handleDeleteCollaborator}
-        />
-      )}
-    </>
-  )}
-</div>
 
         <div className="fixed bottom-8 right-8 flex flex-col gap-3">
           <button onClick={() => setIsRealisationModalOpen(true)}
@@ -2300,38 +2603,22 @@ export default function FullyLoadedPremiumDashboard() {
         </div>
       </main>
 
-      <ObjectiveModal
-        isOpen={isObjectiveModalOpen}
+      <ObjectiveModal isOpen={isObjectiveModalOpen}
         onClose={() => { setIsObjectiveModalOpen(false); setEditingObjective(null); }}
-        onSave={handleSaveObjective}
-        onDelete={handleDeleteObjective}
-        existing={editingObjective}
-        collaborators={collaborators}
-        currentUser={currentUser}
-      />
-      <CollaboratorModal
-        isOpen={isCollaboratorModalOpen}
+        onSave={handleSaveObjective} onDelete={handleDeleteObjective}
+        existing={editingObjective} collaborators={collaborators} currentUser={currentUser} />
+      <CollaboratorModal isOpen={isCollaboratorModalOpen}
         onClose={() => { setIsCollaboratorModalOpen(false); setEditingCollaborator(null); }}
-        onSave={handleSaveCollaborator}
-        existing={editingCollaborator}
-        allCollaborators={collaborators}
-      />
-      <RealisationModal
-        isOpen={isRealisationModalOpen}
+        onSave={handleSaveCollaborator} existing={editingCollaborator} allCollaborators={collaborators} />
+      <RealisationModal isOpen={isRealisationModalOpen}
         onClose={() => setIsRealisationModalOpen(false)}
-        onSave={handleSaveRealisation}
-        objectives={objectives}
-        currentUser={currentUser}
-        collaborators={collaborators}
-      />
-      <PrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        collaborators={collaborators}
-        objectives={objectives}
-        realisations={realisations}
-        currentUser={currentUser}
-      />
+        onSave={handleSaveRealisation} objectives={objectives} currentUser={currentUser} collaborators={collaborators} />
+      <PlannedActionModal isOpen={isPlannedActionModalOpen}
+        onClose={() => setIsPlannedActionModalOpen(false)}
+        onSave={handleSavePlannedAction} objectives={objectives}
+        collaborators={collaborators} currentUser={currentUser} />
+      <PrintModal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)}
+        collaborators={collaborators} objectives={objectives} realisations={realisations} currentUser={currentUser} />
     </div>
   );
 }
