@@ -6,6 +6,12 @@ import Script from 'next/script'
 const inter = Inter({ subsets: ['latin'] })
 
 // Métadonnées mises à jour pour un rendu professionnel sur les moteurs de recherche et LinkedIn
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
+
 export const metadata: Metadata = {
   manifest: "/manifest.json",
   themeColor: "#0F172A",

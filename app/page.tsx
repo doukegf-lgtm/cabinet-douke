@@ -8,7 +8,7 @@ import {
   Landmark, Briefcase, FileText, ArrowUpRight, LogOut, Eye, EyeOff,
   Trash2, Edit3, UserPlus, Link2, ChevronRight, FolderOpen, Save,
   Search, Filter, Printer, PenLine, Clock, MessageSquare, CheckSquare,
-  CalendarRange, Building2, Phone,
+  CalendarRange, Building2, Phone, Menu,
 } from 'lucide-react';
 
 // ============================================================
@@ -2162,6 +2162,7 @@ export default function FullyLoadedPremiumDashboard() {
 
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [stats, setStats] = useState({
     totalObjectives: 0, globalProgress: 0, lateTasks: 0,
@@ -2481,7 +2482,10 @@ export default function FullyLoadedPremiumDashboard() {
 
   return (
     <div className="flex h-screen bg-[#F1F5F9] font-sans text-slate-800 overflow-hidden">
-      <aside className="w-72 bg-[#0F172A] text-slate-300 flex flex-col shadow-2xl shrink-0 z-10 border-r border-slate-800">
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
+      )}
+      <aside className={`w-72 bg-[#0F172A] text-slate-300 flex flex-col shadow-2xl shrink-0 z-50 border-r border-slate-800 fixed md:relative h-full transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="p-6 flex items-center gap-3.5 border-b border-slate-800 bg-[#1E293B]/40">
             <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/30">
@@ -2510,7 +2514,7 @@ export default function FullyLoadedPremiumDashboard() {
 
           <nav className="p-4 space-y-1.5">
             {navItems.map((item, idx) => (
-              <button key={idx} onClick={() => setCurrentView(item.view)}
+              <button key={idx} onClick={() => { setCurrentView(item.view); setIsMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${currentView === item.view ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400' : 'hover:bg-slate-800/60 hover:text-white text-slate-400'}`}>
                 {item.icon}<span>{item.label}</span>
               </button>
@@ -2539,9 +2543,13 @@ export default function FullyLoadedPremiumDashboard() {
       </aside>
 
       <main className="flex-1 flex flex-col overflow-y-auto">
-        <header className="bg-white border-b border-slate-200 h-20 px-8 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-6">
-            <div>
+        <header className="bg-white border-b border-slate-200 h-20 px-4 md:px-8 flex items-center justify-between shrink-0 shadow-sm">
+          <div className="flex items-center gap-3 md:gap-6 min-w-0">
+            <button onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden shrink-0 p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+              <Menu size={20} />
+            </button>
+            <div className="min-w-0">
               <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider">{currentView}</h2>
               <p className="text-[11px] text-slate-400 font-medium">Cabinet d'Ingénierie Financière & Arbitrage ODD</p>
             </div>
@@ -2570,7 +2578,7 @@ export default function FullyLoadedPremiumDashboard() {
           </div>
         </header>
 
-        <div className="p-8 space-y-8">
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="flex flex-col items-center gap-3">
