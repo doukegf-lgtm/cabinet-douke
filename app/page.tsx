@@ -324,7 +324,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
 // ============================================================
 function AdminDashboard({
   objectives, collaborators, activities, realisations, stats, currentStructure,
-  setCurrentView, currentUser,
+  setCurrentView, currentUser, plannedActions,
 }: {
   objectives: Objective[];
   collaborators: Collaborator[];
@@ -334,14 +334,22 @@ function AdminDashboard({
   currentStructure: string;
   setCurrentView: (v: string) => void;
   currentUser: AuthAccount;
+  plannedActions: PlannedAction[];
 }) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const actionsEnRetard = plannedActions.filter((a) => {
+    if (a.status === 'fait') return false;
+    const d = new Date(a.planned_date); d.setHours(0,0,0,0);
+    return d <= today;
+  }).length;
+  const totalAlertes = objectives.filter((o) => o.status === 'En retard').length + actionsEnRetard;
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Dossiers Actifs', value: objectives.length, icon: <Briefcase size={22} className="text-blue-600" />, bg: 'from-blue-500/5 to-transparent', border: 'border-blue-100', sub: 'Missions en cours de traitement', alert: false },
           { label: "Indicateur d'Avancement", value: `${stats.globalProgress}%`, icon: <CheckCircle2 size={22} className="text-emerald-600" />, bg: 'from-emerald-500/5 to-transparent', border: 'border-emerald-100', sub: 'Performance moyenne pondérée', alert: false },
-          { label: 'Alertes / Retards', value: objectives.filter((o) => o.status === 'En retard').length, icon: <AlertCircle size={22} className="text-rose-600" />, bg: objectives.filter((o) => o.status === 'En retard').length > 0 ? 'from-rose-500/10 to-rose-500/5' : 'from-rose-500/5 to-transparent', border: 'border-rose-100', sub: 'Blocages nécessitant arbitrage', alert: objectives.filter((o) => o.status === 'En retard').length > 0 },
+          { label: 'Alertes / Retards', value: totalAlertes, icon: <AlertCircle size={22} className="text-rose-600" />, bg: totalAlertes > 0 ? 'from-rose-500/10 to-rose-500/5' : 'from-rose-500/5 to-transparent', border: 'border-rose-100', sub: 'Blocages nécessitant arbitrage', alert: totalAlertes > 0 },
           { label: 'Livrables en cours', value: objectives.filter((o) => o.status === 'En cours').length, icon: <FileText size={22} className="text-amber-600" />, bg: 'from-amber-500/5 to-transparent', border: 'border-amber-100', sub: 'Validation finale imminente', alert: false },
         ].map((card, idx) => (
           <div key={idx} className={`bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between bg-gradient-to-b ${card.bg} ${card.border}`}>
@@ -2614,7 +2622,7 @@ export default function FullyLoadedPremiumDashboard() {
               {currentView === 'Tableau de bord' && isAdmin && (
                 <AdminDashboard objectives={displayObjectives} collaborators={collaborators} activities={activities}
                   realisations={realisations} stats={stats} currentStructure={currentStructure}
-                  setCurrentView={setCurrentView} currentUser={currentUser} />
+                  setCurrentView={setCurrentView} currentUser={currentUser} plannedActions={plannedActions} />
               )}
               {currentView === 'Tableau de bord' && isSenior && (
                 <SeniorDashboard objectives={objectives} collaborators={collaborators} realisations={realisations}
