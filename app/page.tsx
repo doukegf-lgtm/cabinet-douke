@@ -245,6 +245,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         color: data.color,
       };
       setAttempts(0);
+      localStorage.setItem('eden_current_user', JSON.stringify(account));
       onLogin(account);
     } catch (err) {
       console.error(err);

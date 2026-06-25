@@ -21,13 +21,11 @@ export default function EdenLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function checkAccess() {
       try {
+        const raw = localStorage.getItem('eden_current_user')
+        if (!raw) { setStatus('denied'); return }
+        const account = JSON.parse(raw)
+        if (!account?.id) { setStatus('denied'); return }
         const supabase = createBrowserSupabaseClient()
-        const { data: accounts } = await supabase
-          .from('auth_accounts')
-          .select('id, username, name, role')
-          .limit(1)
-        const account = accounts?.[0]
-        if (!account) { setStatus('denied'); return }
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, username, name, role, eden_access')
