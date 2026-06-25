@@ -56,6 +56,7 @@ type PlannedAction = {
   objective_id: string | null;
   linked_type: 'dossier' | 'admin' | 'autre';
   planned_date: string;
+  planned_time: string;
   period_type: 'semaine' | 'mois';
   status: 'planifié' | 'en cours' | 'fait';
   organization_id: string;
@@ -1770,6 +1771,7 @@ function PlannedActionModal({
     objective_id: null,
     linked_type: 'dossier',
     planned_date: todayISO(),
+    planned_time: '09:00',
     period_type: 'semaine',
     status: 'planifié',
     organization_id: currentUser.orgId === 'Tous' ? 'd2222222-2222-2222-2222-222222222222' : currentUser.orgId,
@@ -1863,6 +1865,13 @@ function PlannedActionModal({
               <input type="date" value={form.planned_date} onChange={(e) => setForm((f) => ({ ...f, planned_date: e.target.value }))}
                 className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
             </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Heure</label>
+              <input type="time" value={form.planned_time} onChange={(e) => setForm((f) => ({ ...f, planned_time: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Période</label>
               <select value={form.period_type} onChange={(e) => setForm((f) => ({ ...f, period_type: e.target.value as 'semaine' | 'mois' }))}
@@ -1989,7 +1998,7 @@ function PlanificationView({
                       <p className="text-[10px] text-blue-600 font-bold mt-1">↳ {linkedObj.title}</p>
                     )}
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-[10px] text-slate-400 font-bold">{formatDate(action.planned_date)}</span>
+                      <span className="text-[10px] text-slate-400 font-bold">{formatDate(action.planned_date)}{action.planned_time ? ' à ' + action.planned_time : ''}</span>
                       {assignee && (
                         <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
                           {assignee.avatar_emoji} {assignee.first_name} {assignee.last_name}
@@ -2417,6 +2426,7 @@ export default function FullyLoadedPremiumDashboard() {
         objective_id: formData.objective_id || null,
         linked_type: formData.linked_type,
         planned_date: formData.planned_date,
+        planned_time: formData.planned_time ?? '09:00',
         period_type: formData.period_type,
         status: formData.status,
         organization_id: formData.organization_id,
