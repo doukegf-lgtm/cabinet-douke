@@ -343,6 +343,7 @@ function AdminDashboard({
     return d <= today;
   }).length;
   const totalAlertes = objectives.filter((o) => o.status === 'En retard').length + actionsEnRetard;
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -352,7 +353,8 @@ function AdminDashboard({
           { label: 'Alertes / Retards', value: totalAlertes, icon: <AlertCircle size={22} className="text-rose-600" />, bg: totalAlertes > 0 ? 'from-rose-500/10 to-rose-500/5' : 'from-rose-500/5 to-transparent', border: 'border-rose-100', sub: 'Blocages nécessitant arbitrage', alert: totalAlertes > 0 },
           { label: 'Livrables en cours', value: objectives.filter((o) => o.status === 'En cours').length, icon: <FileText size={22} className="text-amber-600" />, bg: 'from-amber-500/5 to-transparent', border: 'border-amber-100', sub: 'Validation finale imminente', alert: false },
         ].map((card, idx) => (
-          <div key={idx} className={`bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between bg-gradient-to-b ${card.bg} ${card.border}`}>
+          <div key={idx} onClick={() => setExpandedCard(expandedCard === card.label ? null : card.label)}
+            className={`bg-white p-6 rounded-2xl border shadow-sm flex flex-col justify-between bg-gradient-to-b ${card.bg} ${card.border} cursor-pointer transition-all hover:shadow-md ${expandedCard === card.label ? 'ring-2 ring-blue-400' : ''}`}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{card.label}</p>
@@ -364,6 +366,56 @@ function AdminDashboard({
           </div>
         ))}
       </div>
+
+      {expandedCard && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">{expandedCard}</h3>
+            <button onClick={() => setExpandedCard(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          </div>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {expandedCard === 'Dossiers Actifs' && objectives.map((o) => (
+              <div key={o.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+                <span className="font-bold text-slate-700">{o.title}</span>
+                <span className="text-slate-400 font-black uppercase text-[10px]">{o.status}</span>
+              </div>
+            ))}
+            {expandedCard === "Indicateur d'Avancement" && objectives.map((o) => (
+              <div key={o.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+                <span className="font-bold text-slate-700">{o.title}</span>
+                <span className="text-emerald-600 font-black">{o.progress_percentage}%</span>
+              </div>
+            ))}
+            {expandedCard === 'Alertes / Retards' && (
+              <>
+                {objectives.filter((o) => o.status === 'En retard').map((o) => (
+                  <div key={o.id} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl text-xs">
+                    <span className="font-bold text-slate-700">{o.title}</span>
+                    <span className="text-rose-600 font-black uppercase text-[10px]">Objectif en retard</span>
+                  </div>
+                ))}
+                {plannedActions.filter((a) => {
+                  if (a.status === 'fait') return false;
+                  const d = new Date(a.planned_date); d.setHours(0,0,0,0);
+                  const t = new Date(); t.setHours(0,0,0,0);
+                  return d <= t;
+                }).map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl text-xs">
+                    <span className="font-bold text-slate-700">{a.title}</span>
+                    <span className="text-rose-600 font-black uppercase text-[10px]">Action {a.status}</span>
+                  </div>
+                ))}
+              </>
+            )}
+            {expandedCard === 'Livrables en cours' && objectives.filter((o) => o.status === 'En cours').map((o) => (
+              <div key={o.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl text-xs">
+                <span className="font-bold text-slate-700">{o.title}</span>
+                <span className="text-amber-600 font-black uppercase text-[10px]">En cours</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
         <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider mb-4">Répartition par Catégorie de Dossiers</h3>
@@ -381,6 +433,41 @@ function AdminDashboard({
           })}
         </div>
       </div>
+
+      {actionsEnRetard > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block"></span>
+            <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
+              {actionsEnRetard} action{actionsEnRetard > 1 ? 's' : ''} en retard ou non validée{actionsEnRetard > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {plannedActions.filter((a) => {
+              if (a.status === 'fait') return false;
+              const d = new Date(a.planned_date); d.setHours(0,0,0,0);
+              return d <= today;
+            }).slice(0, 5).map((a) => {
+              const collab = collaborators.find(c => c.id === a.assigned_to);
+              return (
+                <div key={a.id} className="flex items-center justify-between bg-white border border-rose-100 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{a.linked_type === 'dossier' ? '🤝' : a.linked_type === 'admin' ? '📋' : '📁'}</span>
+                    <span className="text-xs font-bold text-slate-800">{a.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {collab && <span className="text-[10px] text-slate-400 font-bold">{collab.avatar_emoji} {collab.first_name}</span>}
+                    <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                      {a.planned_date}{a.planned_time ? ' ' + a.planned_time : ''}
+                    </span>
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded capitalize">{a.status}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
@@ -2588,7 +2675,7 @@ export default function FullyLoadedPremiumDashboard() {
             </div>
           ) : (
             <>
-              {currentView === 'Tableau de bord' && (() => {
+              {currentView === 'Tableau de bord' && !isAdmin && (() => {
                 const today = new Date(); today.setHours(0,0,0,0);
                 const alertes = plannedActions.filter(a => {
                   if (a.status === 'fait') return false;
