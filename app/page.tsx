@@ -2435,6 +2435,7 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Réalisations', view: 'Réalisations', icon: <PenLine size={20} />, show: true },
     { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
+    { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin },
   ].filter((n) => n.show);
 
   const displayObjectives = (() => {
@@ -2577,6 +2578,16 @@ export default function FullyLoadedPremiumDashboard() {
                   onAdd={() => setIsPlannedActionModalOpen(true)}
                   onUpdateStatus={handleUpdatePlannedActionStatus}
                   onDelete={handleDeletePlannedAction} />
+              )}
+              {currentView === 'EDEN' && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%' }}>
+                  <div style={{ textAlign:'center' }}>
+                    <div style={{ fontSize:'48px', marginBottom:'16px' }}>🌿</div>
+                    <div style={{ fontSize:'18px', fontWeight:700, color:'#C9A84C', marginBottom:'8px' }}>Système EDEN</div>
+                    <p style={{ fontSize:'13px', color:'#6B7A8D', marginBottom:'24px' }}>Accédez à la plateforme complète dans un espace dédié.</p>
+                    <a href='/eden' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#C9A84C,#8a6d2f)', borderRadius:'10px', color:'#0F1923', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir EDEN →</a>
+                  </div>
+                </div>
               )}
               {currentView === 'Équipe' && (
                 <EquipeView collaborators={collaborators} objectives={objectives} realisations={realisations}
