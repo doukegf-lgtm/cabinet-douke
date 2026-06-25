@@ -6,6 +6,13 @@ const inter = Inter({ subsets: ['latin'] })
 
 // Métadonnées mises à jour pour un rendu professionnel sur les moteurs de recherche et LinkedIn
 export const metadata: Metadata = {
+  manifest: "/manifest.json",
+  themeColor: "#0F172A",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Cabinet DOUKE",
+  },
   title: 'Cabinet DOUKE | Structuration Financière & PPP',
   description: 'Expertise en ingénierie financière, mobilisation de ressources et gestion des contrats de Partenariat Public-Privé (PPP) en Afrique de l’Ouest.',
 }
