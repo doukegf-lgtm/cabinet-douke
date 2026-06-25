@@ -2572,6 +2572,45 @@ export default function FullyLoadedPremiumDashboard() {
             </div>
           ) : (
             <>
+              {currentView === 'Tableau de bord' && (() => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const alertes = plannedActions.filter(a => {
+                  if (a.status === 'fait') return false;
+                  const d = new Date(a.planned_date); d.setHours(0,0,0,0);
+                  return d <= today;
+                });
+                if (alertes.length === 0) return null;
+                return (
+                  <div className="mb-4 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block"></span>
+                      <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
+                        {alertes.length} action{alertes.length > 1 ? 's' : ''} en retard ou non validée{alertes.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {alertes.slice(0, 5).map((a) => {
+                        const collab = collaborators.find(c => c.id === a.assigned_to);
+                        return (
+                          <div key={a.id} className="flex items-center justify-between bg-white border border-rose-100 rounded-xl px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{a.linked_type === 'dossier' ? '🤝' : a.linked_type === 'admin' ? '📋' : '📁'}</span>
+                              <span className="text-xs font-bold text-slate-800">{a.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {collab && <span className="text-[10px] text-slate-400 font-bold">{collab.avatar_emoji} {collab.first_name}</span>}
+                              <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                                {a.planned_date}{a.planned_time ? ' ' + a.planned_time : ''}
+                              </span>
+                              <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded capitalize">{a.status}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               {currentView === 'Tableau de bord' && isAdmin && (
                 <AdminDashboard objectives={displayObjectives} collaborators={collaborators} activities={activities}
                   realisations={realisations} stats={stats} currentStructure={currentStructure}
