@@ -469,7 +469,7 @@ function AdminDashboard({
           <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-50 border px-2 py-0.5 rounded">Journal Consolidé</span>
         </div>
         <div className="space-y-2.5">
-          {activities.map((act, i) => (
+          {activities.slice(0, 10).map((act, i) => (
             <div key={i} className="text-xs text-slate-700 font-medium p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between hover:bg-slate-50 transition-all">
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
