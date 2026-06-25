@@ -53,7 +53,7 @@ export default function EdenLayout({ children }: { children: ReactNode }) {
         <div style={{ fontSize:'48px', marginBottom:'16px' }}>🔒</div>
         <div style={{ fontSize:'18px', fontWeight:700, color:'#C9A84C', marginBottom:'10px' }}>Accès EDEN restreint</div>
         <p style={{ fontSize:'13px', color:'#6B7A8D', lineHeight:'1.6', marginBottom:'24px' }}>Votre compte n'est pas autorisé à accéder au système EDEN. Contactez l'administrateur du Cabinet DOUKE.</p>
-        <a href="/dashboard" style={{ display:'inline-block', padding:'10px 24px', background:'rgba(201,168,76,.12)', border:'1px solid rgba(201,168,76,.3)', borderRadius:'8px', color:'#C9A84C', textDecoration:'none', fontSize:'13px', fontWeight:500 }}>← Retour au dashboard</a>
+        <a href="/" style={{ display:'inline-block', padding:'10px 24px', background:'rgba(201,168,76,.12)', border:'1px solid rgba(201,168,76,.3)', borderRadius:'8px', color:'#C9A84C', textDecoration:'none', fontSize:'13px', fontWeight:500 }}>← Retour au dashboard</a>
       </div>
     </div>
   )
@@ -90,6 +90,9 @@ export default function EdenLayout({ children }: { children: ReactNode }) {
           )}
         </nav>
         <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(201,168,76,.15)' }}>
+          <a href="/" style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 10px', marginBottom:'10px', borderRadius:'8px', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', color:'#A8B4C0', textDecoration:'none', fontSize:'12px', fontWeight:500 }}>
+            <span>←</span><span>Retour à l'accueil</span>
+          </a>
           <div style={{ fontSize:'12px', fontWeight:600, color:'#A8B4C0' }}>{session.name}</div>
           <div style={{ fontSize:'11px', color:'#6B7A8D', marginTop:'2px' }}>{session.role === 'admin' ? '👑 Administrateur EDEN' : '✅ Accès EDEN actif'}</div>
           <div style={{ fontSize:'10px', color:'#3D4E5F', marginTop:'2px' }}>@{session.username}</div>
