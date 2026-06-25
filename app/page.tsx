@@ -2151,6 +2151,20 @@ export default function FullyLoadedPremiumDashboard() {
     pendingTasks: 0, conacceProgress: 0, doukeProgress: 0,
   });
 
+  useEffect(() => {
+    const raw = localStorage.getItem('eden_current_user')
+    if (raw) {
+      try {
+        const account: AuthAccount = JSON.parse(raw)
+        if (account?.id) {
+          setCurrentUser(account)
+          setIsAuthenticated(true)
+          setCurrentStructure(account.orgId !== 'Tous' ? account.orgId : 'Tous')
+        }
+      } catch { /* session corrompue, on ignore */ }
+    }
+  }, [])
+
   const handleLogin = (account: AuthAccount) => {
     setCurrentUser(account);
     setIsAuthenticated(true);
@@ -2159,6 +2173,7 @@ export default function FullyLoadedPremiumDashboard() {
 
   const handleLogout = () => {
     if (window.confirm('Confirmer la déconnexion sécurisée ?')) {
+      localStorage.removeItem('eden_current_user');
       setIsAuthenticated(false);
       setCurrentUser(null);
       setCurrentView('Tableau de bord');
