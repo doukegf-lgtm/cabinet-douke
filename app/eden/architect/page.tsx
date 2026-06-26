@@ -298,6 +298,24 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
               }}>
               🔢 Moteur financier avancé →
             </button>
+            {typeModele === 'social' && (
+              <button style={{ ...S.btn, background: 'rgba(147,51,234,.15)', border: '1px solid rgba(147,51,234,.4)', color: '#A855F7' }}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('architect_context', JSON.stringify({
+                      nomProjet: form.nom_projet,
+                      promoteur: form.promoteur,
+                      secteur: modeleChoisi?.secteur ?? '',
+                      modele: modeleChoisi?.label ?? '',
+                      zone: form.zone,
+                      juridique: form.juridique,
+                    }))
+                    window.location.href = '/eden/architect/moteur-social'
+                  }
+                }}>
+                🤝 Moteur budgétaire social →
+              </button>
+            )}
           </div>
         </div>
       )}
