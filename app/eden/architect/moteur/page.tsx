@@ -1228,12 +1228,24 @@ const TABS: { key: TabKey; label: string }[] = [
 export default function MoteurFinancierPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("A");
   const [state, setState] = useState<MoteurState>(initialState);
+  const [ctx, setCtx] = useState<{ nomProjet?: string; modele?: string; secteur?: string; zone?: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('architect_context');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setCtx(parsed);
+        if (parsed.tauxCroissance) setState((s) => ({ ...s, tauxCroissance: parsed.tauxCroissance }));
+      }
+    } catch { /* sessionStorage indisponible */ }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-medium text-gray-900">ARCHITECT — Moteur financier</h1>
           <p className="text-sm text-gray-500 mt-1">Business plan bancable · Normes OHADA / UEMOA</p>
         </div>
