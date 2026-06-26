@@ -276,10 +276,27 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setStep('formulaire')}>← Retour</button>
             <button style={{ ...S.btn, ...S.btnGold }} onClick={generer} disabled={generating || !hypo.ca_annee1}>
               {generating ? '⏳ Génération en cours…' : '✨ Générer les documents'}
+            </button>
+            <button style={{ ...S.btn, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.4)', color: '#818CF8' }}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('architect_context', JSON.stringify({
+                    nomProjet: form.nom_projet,
+                    promoteur: form.promoteur,
+                    secteur: modeleChoisi?.secteur ?? '',
+                    modele: modeleChoisi?.label ?? '',
+                    zone: form.zone,
+                    juridique: form.juridique,
+                    tauxCroissance: parseFloat(hypo.croissance) || 10,
+                  }))
+                  window.location.href = '/eden/architect/moteur'
+                }
+              }}>
+              🔢 Moteur financier avancé →
             </button>
           </div>
         </div>
