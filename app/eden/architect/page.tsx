@@ -319,7 +319,7 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setStep('formulaire')}>← Retour</button>
             <a href='/eden/architect/coffre' style={{ ...S.btn, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: '#A8B4C0', textDecoration: 'none', display: 'inline-block' }}>🗄️ Coffre des dossiers</a>
-            <button style={{ ...S.btn, ...S.btnGold }} onClick={generer} disabled={generating || !hypo.ca_annee1}>
+            <button style={{ ...S.btn, ...S.btnGold }} onClick={generer} disabled={generating}>
               {generating ? '⏳ Génération en cours…' : '✨ Générer les documents'}
             </button>
             {typeModele === 'commercial' && (
