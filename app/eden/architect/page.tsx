@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
+import Questionnaire, { type ReponsesQuestionnaire } from './questionnaire/Questionnaire'
 
 const MODELES_COMMERCIAUX = [
   { id: 'agro', label: 'Agrobusiness & Transformation agricole', secteur: 'Agriculture' },
@@ -41,7 +42,7 @@ const FINANCEMENTS = ['Crédit bancaire', 'Capital-investissement', 'Subvention'
 const GARANTIES_LIST = ['Hypothèque immobilière', 'Nantissement matériel', 'Caution personnelle', 'Fonds de garantie (GARI)', 'Warrant agricole', 'Assurance-crédit']
 const PARTENAIRES = ['BOAD', 'AFD / Proparco', 'Oikocredit', 'Cofina', 'Ecobank', 'BNDE Bénin', 'GARI Fund', 'UNCDF', 'Advans', 'BOA', 'SIB', 'Autre']
 
-type Step = 'modele' | 'formulaire' | 'plan' | 'resultat'
+type Step = 'modele' | 'formulaire' | 'questionnaire' | 'plan' | 'resultat'
 type PlanType = '3ans' | '5ans' | '5ans_expert'
 
 interface Formulaire {
@@ -72,6 +73,7 @@ export default function ArchitectPage() {
   const [modeleChoisi, setModeleChoisi] = useState<{ id: string; label: string; secteur: string } | null>(null)
   const [form, setForm] = useState<Formulaire>({ nom_projet:'', promoteur:'', zone:'Bénin', juridique:'SARL', capital:'', montant:'', type_financement:'Crédit bancaire', objet:'', emplois:'', garanties:[], partenaire:'' })
   const [planType, setPlanType] = useState<PlanType>('3ans')
+  const [reponses, setReponses] = useState<ReponsesQuestionnaire | null>(null)
   const [hypo, setHypo] = useState<PlanHypo>({ ca_annee1:'', croissance:'10', charges_fixes:'', charges_variables:'', taux_impot:'25' })
   const [generating, setGenerating] = useState(false)
   const [bp, setBp] = useState('')
@@ -142,6 +144,31 @@ export default function ArchitectPage() {
       .replace(/\{\{apport_personnel\}\}/g, fmt(fin.apport_personnel || 0))
       .replace(/\{\{emprunt_total\}\}/g, fmt(fin.emprunt_total || 0))
       .replace(/\{\{pct_apport\}\}/g, fin.pct_apport ? fin.pct_apport + '%' : 'à compléter')
+      // Réponses questionnaire
+      .replace(/\{\{probleme_adresse\}\}/g, reponses?.probleme_adresse || 'à compléter')
+      .replace(/\{\{valeur_ajoutee\}\}/g, reponses?.valeur_ajoutee || 'à compléter')
+      .replace(/\{\{parcours_professionnel\}\}/g, reponses?.parcours_professionnel || 'à compléter')
+      .replace(/\{\{experience_similaire\}\}/g, reponses?.experience_similaire || 'à compléter')
+      .replace(/\{\{pourquoi_vous\}\}/g, reponses?.pourquoi_vous || 'à compléter')
+      .replace(/\{\{profil_clients\}\}/g, reponses?.profil_clients || 'à compléter')
+      .replace(/\{\{taille_marche\}\}/g, reponses?.taille_marche || 'à compléter')
+      .replace(/\{\{concurrents\}\}/g, reponses?.concurrents || 'à compléter')
+      .replace(/\{\{politique_prix\}\}/g, reponses?.politique_prix || 'à compléter')
+      .replace(/\{\{test_marche\}\}/g, reponses?.test_marche || 'à compléter')
+      .replace(/\{\{acquisition_premiers_clients\}\}/g, reponses?.acquisition_premiers_clients || 'à compléter')
+      .replace(/\{\{processus_production\}\}/g, reponses?.processus_production || 'à compléter')
+      .replace(/\{\{equipements_cles\}\}/g, reponses?.equipements_cles || 'à compléter')
+      .replace(/\{\{fournisseurs_principaux\}\}/g, reponses?.fournisseurs_principaux || 'à compléter')
+      .replace(/\{\{capacite_production\}\}/g, reponses?.capacite_production || 'à compléter')
+      .replace(/\{\{goulots_etranglement\}\}/g, reponses?.goulots_etranglement || 'à compléter')
+      .replace(/\{\{accords_signes\}\}/g, reponses?.accords_signes || 'à compléter')
+      .replace(/\{\{equipe_cles\}\}/g, reponses?.equipe_cles || 'à compléter')
+      .replace(/\{\{postes_prioritaires\}\}/g, reponses?.postes_prioritaires || 'à compléter')
+      .replace(/\{\{fidelisation_personnel\}\}/g, reponses?.fidelisation_personnel || 'à compléter')
+      .replace(/\{\{risques_principaux\}\}/g, reponses?.risques_principaux || 'à compléter')
+      .replace(/\{\{mitigations\}\}/g, reponses?.mitigations || 'à compléter')
+      .replace(/\{\{plan_b_financier\}\}/g, reponses?.plan_b_financier || 'à compléter')
+      .replace(/\{\{risques_reglementaires\}\}/g, reponses?.risques_reglementaires || 'à compléter')
   }
 
   async function generer() {
@@ -278,7 +305,7 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
 
       {/* ÉTAPES */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        {[['modele','1. Modèle'],['formulaire','2. Informations'],['plan','3. Plan financier'],['resultat','4. Documents']].map(([k,l]) => (
+        {[['modele','1. Modèle'],['formulaire','2. Informations'],['questionnaire','3. Questionnaire'],['plan','4. Plan financier'],['resultat','5. Documents']].map(([k,l]) => (
           <div key={k} style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: step === k ? 600 : 400, background: step === k ? 'rgba(201,168,76,.15)' : 'rgba(255,255,255,.04)', color: step === k ? '#C9A84C' : '#6B7A8D', border: `1px solid ${step === k ? 'rgba(201,168,76,.3)' : 'transparent'}` }}>{l}</div>
         ))}
       </div>
@@ -334,9 +361,20 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
             <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setStep('modele')}>← Retour</button>
-            <button style={{ ...S.btn, ...S.btnGold }} onClick={() => setStep('plan')} disabled={!form.nom_projet || !form.montant}>Continuer →</button>
+            <button style={{ ...S.btn, ...S.btnGold }} onClick={() => setStep('questionnaire')} disabled={!form.nom_projet || !form.montant}>Continuer →</button>
           </div>
         </div>
+      )}
+
+      {/* ÉTAPE QUESTIONNAIRE */}
+      {step === 'questionnaire' && modeleChoisi && (
+        <Questionnaire
+          modeleId={modeleChoisi.id}
+          modeleLabel={modeleChoisi.label}
+          nomProjet={form.nom_projet}
+          onTerminer={(rep) => { setReponses(rep); setStep('plan') }}
+          onRetour={() => setStep('formulaire')}
+        />
       )}
 
       {/* ÉTAPE 3 — PLAN FINANCIER */}
