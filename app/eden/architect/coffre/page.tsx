@@ -183,7 +183,7 @@ export default function CoffrePage() {
                     <div style={{ fontSize: '11px', color: '#6B7A8D', marginTop: '2px' }}>{d.promoteur || '—'} · {d.zone}</div>
                     <div style={{ fontSize: '11px', color: '#A8B4C0', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.modele}</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', shrink: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                     <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', border: '1px solid', whiteSpace: 'nowrap', ...Object.fromEntries(Object.entries(STATUT_COLORS[d.statut] || STATUT_COLORS.brouillon).map(([k]) => [k, ''])) }} className={STATUT_COLORS[d.statut] || STATUT_COLORS.brouillon}>{d.statut}</span>
                     <span style={{ fontSize: '10px', color: '#3D4E5F' }}>{new Date(d.created_at).toLocaleDateString('fr-FR')}</span>
                   </div>
