@@ -111,7 +111,10 @@ export default function ArchitectPage() {
     const plan = buildPlanFinancier()
     setPlanData(plan)
     try {
-      const prompt = `Tu es un expert financier OHADA. Génère un business plan professionnel en français pour :
+      const isSocial = typeModele === 'social'
+      const prompt = `Tu es un expert senior en ingénierie financière OHADA/UEMOA.
+
+Génère un business plan COMPLET, DÉTAILLÉ et BANCABLE en français pour :
 Projet : ${form.nom_projet}
 Promoteur : ${form.promoteur}
 Modèle : ${modeleChoisi.label} (${modeleChoisi.secteur})
@@ -130,7 +133,7 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
       })
       const d = await res.json()
       const txt = d.content?.map((x: {type:string;text?:string}) => x.text || '').join('') || ''
@@ -140,7 +143,7 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
       const res2 = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt2 }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, messages: [{ role: 'user', content: prompt2 }] })
       })
       const d2 = await res2.json()
       setNs(d2.content?.map((x: {type:string;text?:string}) => x.text || '').join('') || '')
@@ -281,23 +284,25 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
             <button style={{ ...S.btn, ...S.btnGold }} onClick={generer} disabled={generating || !hypo.ca_annee1}>
               {generating ? '⏳ Génération en cours…' : '✨ Générer les documents'}
             </button>
-            <button style={{ ...S.btn, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.4)', color: '#818CF8' }}
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  sessionStorage.setItem('architect_context', JSON.stringify({
-                    nomProjet: form.nom_projet,
-                    promoteur: form.promoteur,
-                    secteur: modeleChoisi?.secteur ?? '',
-                    modele: modeleChoisi?.label ?? '',
-                    zone: form.zone,
-                    juridique: form.juridique,
-                    tauxCroissance: parseFloat(hypo.croissance) || 10,
-                  }))
-                  window.location.href = '/eden/architect/moteur'
-                }
-              }}>
-              🔢 Moteur financier avancé →
-            </button>
+            {typeModele === 'commercial' && (
+              <button style={{ ...S.btn, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.4)', color: '#818CF8' }}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('architect_context', JSON.stringify({
+                      nomProjet: form.nom_projet,
+                      promoteur: form.promoteur,
+                      secteur: modeleChoisi?.secteur ?? '',
+                      modele: modeleChoisi?.label ?? '',
+                      zone: form.zone,
+                      juridique: form.juridique,
+                      tauxCroissance: parseFloat(hypo.croissance) || 10,
+                    }))
+                    window.location.href = '/eden/architect/moteur'
+                  }
+                }}>
+                🔢 Moteur financier avancé →
+              </button>
+            )}
             {typeModele === 'social' && (
               <button style={{ ...S.btn, background: 'rgba(147,51,234,.15)', border: '1px solid rgba(147,51,234,.4)', color: '#A855F7' }}
                 onClick={() => {
