@@ -139,8 +139,12 @@ export default function ArchitectPage() {
 
     // Si squelette disponible : injection directe sans IA
     if (tplData?.squelette_bp) {
-      setBp(injecter(tplData.squelette_bp, form, modeleChoisi))
-      setNs(injecter(tplData.squelette_ns || '', form, modeleChoisi))
+      const bpGenere = injecter(tplData.squelette_bp, form, modeleChoisi)
+      const nsGenere = injecter(tplData.squelette_ns || '', form, modeleChoisi)
+      setBp(bpGenere)
+      setNs(nsGenere)
+      await sauvegarderAvecDonnees(bpGenere, nsGenere)
+      setSaved(true)
       setGenerating(false)
       setStep('resultat')
       return
@@ -187,8 +191,24 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
     } catch (e) {
       setBp('Erreur de génération. Vérifiez votre connexion.')
     }
+    await sauvegarderAvecDonnees(bp, ns)
+    setSaved(true)
     setGenerating(false)
     setStep('resultat')
+  }
+
+  async function sauvegarderAvecDonnees(bpText: string, nsText: string) {
+    const supabase = createBrowserSupabaseClient()
+    await supabase.from('dossiers_eden').insert({
+      nom_projet: form.nom_projet, promoteur: form.promoteur, zone: form.zone,
+      modele: modeleChoisi?.label, secteur: modeleChoisi?.secteur,
+      juridique: form.juridique, capital: parseFloat(form.capital) || 0,
+      montant: parseFloat(form.montant) || 0, type_financement: form.type_financement,
+      objet: form.objet, emplois: parseInt(form.emplois) || 0,
+      garanties: form.garanties.join(', '), partenaire: form.partenaire,
+      plan_type: planType, business_plan: bpText, note_synthese: nsText,
+      plan_financier: planData, statut: 'brouillon'
+    })
   }
 
   async function sauvegarder() {
