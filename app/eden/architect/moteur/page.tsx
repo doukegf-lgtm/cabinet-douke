@@ -1241,6 +1241,51 @@ export default function MoteurFinancierPage() {
     } catch { /* sessionStorage indisponible */ }
   }, []);
 
+  // Sync automatique des données financières vers sessionStorage à chaque modification
+  useEffect(() => {
+    try {
+      const ca1 = state.produits.reduce((s, p) => s + getCAP(p), 0);
+      const tc = state.tauxCroissance / 100;
+      const totTerrain = state.terrains.reduce((s, t) => s + t.prix, 0);
+      const totEquip = state.equips.reduce((s, e) => s + e.qte * e.pu, 0);
+      const salAnn = state.salaires.reduce((s, r) => s + r.nbre * r.salaire * 1.2, 0) * 12;
+      const chFix = state.chargesFix.reduce((s, c) => s + c.pu * c.mois, 0);
+      const totFixAnn = salAnn + chFix;
+      const totMBval = state.produits.reduce((s, p) => {
+        const cr = getCRUnitaire(p);
+        const mb = p.pu > 0 ? (p.pu - cr) / p.pu : 0;
+        return s + getCAP(p) * mb;
+      }, 0);
+      const txMB = ca1 > 0 ? totMBval / ca1 : 0;
+      const totAmortAnn = [
+        ...state.equips.map((e) => (e.duree > 0 ? (e.qte * e.pu) / e.duree : 0)),
+        ...state.terrains.filter((t) => t.duree > 0).map((t) => t.prix / t.duree),
+      ].reduce((s, v) => s + v, 0);
+      const totSalMensuel = state.salaires.reduce((s, r) => s + r.nbre * r.salaire * 1.2, 0);
+      const bfr = (totSalMensuel + totFixAnn / 12) * state.bfrMoisFix + ((ca1 / 12) * 0.4) * state.bfrMoisVar;
+      const totalProjet = totTerrain + totEquip + bfr;
+      const empruntTotal = state.emprunts.reduce((s, e) => s + e.montant, 0);
+      const apport = state.apportPerso;
+      const financial = {
+        ca_an1: Math.round(ca1),
+        ca_an2: Math.round(ca1 * (1 + tc)),
+        ca_an3: Math.round(ca1 * Math.pow(1 + tc, 2)),
+        taux_marge_brute: Math.round(txMB * 100),
+        charges_fixes_annuelles: Math.round(totFixAnn),
+        amortissements_annuels: Math.round(totAmortAnn),
+        total_immobilisations: Math.round(totTerrain + totEquip),
+        bfr: Math.round(bfr),
+        total_projet: Math.round(totalProjet),
+        apport_personnel: Math.round(apport),
+        emprunt_total: Math.round(empruntTotal),
+        pct_apport: totalProjet > 0 ? Math.round(apport / totalProjet * 100) : 0,
+        nb_produits: state.produits.filter(p => p.nom).length,
+        nb_emplois: state.salaires.reduce((s, r) => s + r.nbre, 0),
+      };
+      sessionStorage.setItem('architect_financial_data', JSON.stringify(financial));
+    } catch { /* sessionStorage indisponible */ }
+  }, [state]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
