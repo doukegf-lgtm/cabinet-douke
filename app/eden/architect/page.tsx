@@ -106,6 +106,15 @@ export default function ArchitectPage() {
   }
 
   function injecter(texte: string, f: typeof form, m: typeof modeleChoisi): string {
+    // Lire les données financières du moteur (sync auto depuis sessionStorage)
+    let fin: Record<string, number> = {};
+    try {
+      const raw = typeof window !== 'undefined' ? sessionStorage.getItem('architect_financial_data') : null;
+      if (raw) fin = JSON.parse(raw);
+    } catch { /* ignore */ }
+
+    const fmt = (n: number) => n > 0 ? Math.round(n).toLocaleString('fr-FR') : 'à compléter';
+
     return texte
       .replace(/\{\{nom_projet\}\}/g, f.nom_projet)
       .replace(/\{\{promoteur\}\}/g, f.promoteur || 'Le promoteur')
@@ -115,11 +124,24 @@ export default function ArchitectPage() {
       .replace(/\{\{montant\}\}/g, f.montant ? Number(f.montant).toLocaleString('fr-FR') : '—')
       .replace(/\{\{type_financement\}\}/g, f.type_financement)
       .replace(/\{\{objet\}\}/g, f.objet || 'Voir détails du projet')
-      .replace(/\{\{emplois\}\}/g, f.emplois || '—')
+      .replace(/\{\{emplois\}\}/g, fin.nb_emplois ? String(fin.nb_emplois) : (f.emplois || '—'))
       .replace(/\{\{garanties\}\}/g, f.garanties.join(', ') || '—')
       .replace(/\{\{partenaire\}\}/g, f.partenaire || '—')
       .replace(/\{\{modele\}\}/g, m?.label || '')
       .replace(/\{\{secteur\}\}/g, m?.secteur || '')
+      // Données financières du moteur
+      .replace(/\{\{ca_an1\}\}/g, fmt(fin.ca_an1 || 0))
+      .replace(/\{\{ca_an2\}\}/g, fmt(fin.ca_an2 || 0))
+      .replace(/\{\{ca_an3\}\}/g, fmt(fin.ca_an3 || 0))
+      .replace(/\{\{taux_marge_brute\}\}/g, fin.taux_marge_brute ? fin.taux_marge_brute + '%' : 'à compléter')
+      .replace(/\{\{charges_fixes_annuelles\}\}/g, fmt(fin.charges_fixes_annuelles || 0))
+      .replace(/\{\{amortissements_annuels\}\}/g, fmt(fin.amortissements_annuels || 0))
+      .replace(/\{\{total_immobilisations\}\}/g, fmt(fin.total_immobilisations || 0))
+      .replace(/\{\{bfr\}\}/g, fmt(fin.bfr || 0))
+      .replace(/\{\{total_projet\}\}/g, fmt(fin.total_projet || 0))
+      .replace(/\{\{apport_personnel\}\}/g, fmt(fin.apport_personnel || 0))
+      .replace(/\{\{emprunt_total\}\}/g, fmt(fin.emprunt_total || 0))
+      .replace(/\{\{pct_apport\}\}/g, fin.pct_apport ? fin.pct_apport + '%' : 'à compléter')
   }
 
   async function generer() {
