@@ -105,6 +105,23 @@ export default function ArchitectPage() {
     })
   }
 
+  function injecter(texte: string, f: typeof form, m: typeof modeleChoisi): string {
+    return texte
+      .replace(/\{\{nom_projet\}\}/g, f.nom_projet)
+      .replace(/\{\{promoteur\}\}/g, f.promoteur || 'Le promoteur')
+      .replace(/\{\{zone\}\}/g, f.zone)
+      .replace(/\{\{juridique\}\}/g, f.juridique)
+      .replace(/\{\{capital\}\}/g, f.capital ? Number(f.capital).toLocaleString('fr-FR') : '—')
+      .replace(/\{\{montant\}\}/g, f.montant ? Number(f.montant).toLocaleString('fr-FR') : '—')
+      .replace(/\{\{type_financement\}\}/g, f.type_financement)
+      .replace(/\{\{objet\}\}/g, f.objet || 'Voir détails du projet')
+      .replace(/\{\{emplois\}\}/g, f.emplois || '—')
+      .replace(/\{\{garanties\}\}/g, f.garanties.join(', ') || '—')
+      .replace(/\{\{partenaire\}\}/g, f.partenaire || '—')
+      .replace(/\{\{modele\}\}/g, m?.label || '')
+      .replace(/\{\{secteur\}\}/g, m?.secteur || '')
+  }
+
   async function generer() {
     if (!modeleChoisi || !form.nom_projet || !form.montant) return
     setGenerating(true)
@@ -113,34 +130,17 @@ export default function ArchitectPage() {
 
     // NIVEAU 1 : Squelette depuis templates_bp
     const supabase = createBrowserSupabaseClient()
-    const { data: tplData } = await supabase
+    const { data: tplRows } = await supabase
       .from('templates_bp')
       .select('squelette_bp, squelette_ns')
       .eq('modele_id', modeleChoisi.id)
-      .maybeSingle()
-
-    // NIVEAU 2 : Injection variables formulaire
-    function injecter(texte: string): string {
-      return texte
-        .replace(/\{\{nom_projet\}\}/g, form.nom_projet)
-        .replace(/\{\{promoteur\}\}/g, form.promoteur || 'Le promoteur')
-        .replace(/\{\{zone\}\}/g, form.zone)
-        .replace(/\{\{juridique\}\}/g, form.juridique)
-        .replace(/\{\{capital\}\}/g, form.capital ? Number(form.capital).toLocaleString('fr-FR') : '—')
-        .replace(/\{\{montant\}\}/g, form.montant ? Number(form.montant).toLocaleString('fr-FR') : '—')
-        .replace(/\{\{type_financement\}\}/g, form.type_financement)
-        .replace(/\{\{objet\}\}/g, form.objet || 'Voir détails du projet')
-        .replace(/\{\{emplois\}\}/g, form.emplois || '—')
-        .replace(/\{\{garanties\}\}/g, form.garanties.join(', ') || '—')
-        .replace(/\{\{partenaire\}\}/g, form.partenaire || '—')
-        .replace(/\{\{modele\}\}/g, modeleChoisi?.label || '')
-        .replace(/\{\{secteur\}\}/g, modeleChoisi?.secteur || '')
-    }
+      .limit(1)
+    const tplData = tplRows && tplRows.length > 0 ? tplRows[0] : null
 
     // Si squelette disponible : injection directe sans IA
     if (tplData?.squelette_bp) {
-      setBp(injecter(tplData.squelette_bp))
-      setNs(injecter(tplData.squelette_ns || ''))
+      setBp(injecter(tplData.squelette_bp, form, modeleChoisi))
+      setNs(injecter(tplData.squelette_ns || '', form, modeleChoisi))
       setGenerating(false)
       setStep('resultat')
       return

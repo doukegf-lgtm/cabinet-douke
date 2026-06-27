@@ -9,6 +9,7 @@ const NAV = [
   { href: '/eden', label: 'Accueil EDEN', icon: '🏠', exact: true },
   { href: '/eden/partenaires', label: 'SCOUT — Partenaires', icon: '🔵', exact: false },
   { href: '/eden/architect', label: 'ARCHITECT — Dossiers', icon: '🟡', exact: false },
+  { href: '/eden/architect/coffre', label: ' 🗄️ Coffre des dossiers', icon: '', exact: false },
   { href: '/eden/connector', label: 'CONNECTOR — Pipeline', icon: '🟢', exact: false },
   { href: '/eden/tracker', label: 'TRACKER — Reporting', icon: '🟣', exact: false },
 ]
