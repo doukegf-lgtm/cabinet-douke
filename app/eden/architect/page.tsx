@@ -110,6 +110,43 @@ export default function ArchitectPage() {
     setGenerating(true)
     const plan = buildPlanFinancier()
     setPlanData(plan)
+
+    // NIVEAU 1 : Squelette depuis templates_bp
+    const supabase = createBrowserSupabaseClient()
+    const { data: tplData } = await supabase
+      .from('templates_bp')
+      .select('squelette_bp, squelette_ns')
+      .eq('modele_id', modeleChoisi.id)
+      .maybeSingle()
+
+    // NIVEAU 2 : Injection variables formulaire
+    function injecter(texte: string): string {
+      return texte
+        .replace(/\{\{nom_projet\}\}/g, form.nom_projet)
+        .replace(/\{\{promoteur\}\}/g, form.promoteur || 'Le promoteur')
+        .replace(/\{\{zone\}\}/g, form.zone)
+        .replace(/\{\{juridique\}\}/g, form.juridique)
+        .replace(/\{\{capital\}\}/g, form.capital ? Number(form.capital).toLocaleString('fr-FR') : '—')
+        .replace(/\{\{montant\}\}/g, form.montant ? Number(form.montant).toLocaleString('fr-FR') : '—')
+        .replace(/\{\{type_financement\}\}/g, form.type_financement)
+        .replace(/\{\{objet\}\}/g, form.objet || 'Voir détails du projet')
+        .replace(/\{\{emplois\}\}/g, form.emplois || '—')
+        .replace(/\{\{garanties\}\}/g, form.garanties.join(', ') || '—')
+        .replace(/\{\{partenaire\}\}/g, form.partenaire || '—')
+        .replace(/\{\{modele\}\}/g, modeleChoisi?.label || '')
+        .replace(/\{\{secteur\}\}/g, modeleChoisi?.secteur || '')
+    }
+
+    // Si squelette disponible : injection directe sans IA
+    if (tplData?.squelette_bp) {
+      setBp(injecter(tplData.squelette_bp))
+      setNs(injecter(tplData.squelette_ns || ''))
+      setGenerating(false)
+      setStep('resultat')
+      return
+    }
+
+    // Sinon : génération IA (modèles sans squelette)
     try {
       const isSocial = typeModele === 'social'
       const prompt = `Tu es un expert senior en ingénierie financière OHADA/UEMOA.
