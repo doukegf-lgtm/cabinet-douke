@@ -142,7 +142,7 @@ const QUESTIONS_SECTORIELLES: Record<string, { id: string; label: string; profon
     { id: 'equipements_materiel', label: 'Quel est votre parc matériel propre (engins, véhicules, outillage) et quelle part louez-vous ?' },
     { id: 'sourcing_materiaux', label: 'Comment approvisionnez-vous vos matériaux principaux — fournisseurs locaux, import, délais et conditions de paiement ?' },
     { id: 'gestion_sous_traitance', label: '[PROFONDEUR] Quelle est votre politique de sous-traitance — quels corps de métier externalisez-vous et comment contrôlez-vous la qualité ?', profondeur: true },
-    { id: 'gestion_retenues', label: '[PROFONDEUR] Comment gérez-vous les retenues de garantie (5-10%) et les délais de paiement maître d'ouvrage sur votre trésorerie ?', profondeur: true },
+    { id: 'gestion_retenues', label: '[PROFONDEUR] Comment gérez-vous les retenues de garantie (5-10%) et les délais de paiement maître d’ouvrage sur votre trésorerie ?', profondeur: true },
     { id: 'sinistres_assurances', label: '[PROFONDEUR] Disposez-vous d'une assurance décennale et RC chantier — comment gérez-vous un sinistre type sur chantier ?', profondeur: true },
   ],
   sante: [
