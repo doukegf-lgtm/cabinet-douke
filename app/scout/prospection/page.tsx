@@ -46,7 +46,7 @@ export default function ProspectionPage() {
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [filtreService, setFiltreService] = useState('tous')
   const [filtreStructure, setFiltreStructure] = useState('tous')
-  const [session, setSession] = useState<{id:string,role:string,org_id?:string}|null>(null)
+  const [session, setSession] = useState<Record<string,string>|null>(null)
   const [showServices, setShowServices] = useState(false)
   const [serviceForm, setServiceForm] = useState<Partial<Service>>({ nom:'', description:'', actif:true, structures:'DOUKE' })
   const [editingService, setEditingService] = useState<Service|null>(null)
@@ -174,7 +174,7 @@ export default function ProspectionPage() {
           <h2 style={{ color:'#E8E8E8', fontSize:'16px', fontWeight:700, margin:0 }}>🔍 Prospection qualifiée</h2>
           <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
             {/* Filtre structure — Admin voit tout avec sélecteur */}
-            {(session?.role === 'Super-Admin' || !session?.orgId || session?.orgId === 'Tous') ? (
+            {(session?.role === 'Super-Admin' || !session?.org_id || session?.org_id === 'org_douke_01') ? (
               <div style={{ display:'flex', gap:'4px' }}>
                 {['tous',...STRUCTURES.map(s=>s.id)].map(sid => {
                   const st = STRUCTURES.find(s=>s.id===sid)
