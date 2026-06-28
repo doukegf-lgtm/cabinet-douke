@@ -1,39 +1,17 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
 import Questionnaire, { type ReponsesQuestionnaire } from './questionnaire/Questionnaire'
 
-const MODELES_COMMERCIAUX = [
-  { id: 'agro', label: 'Agrobusiness & Transformation agricole', secteur: 'Agriculture' },
-  { id: 'btp', label: 'BTP & Matériaux de construction', secteur: 'BTP' },
-  { id: 'sante', label: 'Clinique & Services de santé', secteur: 'Santé' },
-  { id: 'fintech', label: 'Fintech & Services financiers digitaux', secteur: 'Finance' },
-  { id: 'energie', label: 'Énergie solaire & Efficacité énergétique', secteur: 'Énergie' },
-  { id: 'immo', label: 'Immobilier & Promotion immobilière', secteur: 'Immobilier' },
-  { id: 'transport', label: 'Transport & Logistique', secteur: 'Transport' },
-  { id: 'education', label: 'École privée & Formation professionnelle', secteur: 'Éducation' },
-  { id: 'restauration', label: 'Restauration & Hôtellerie', secteur: 'Tourisme' },
-  { id: 'commerce', label: 'Commerce général & Distribution', secteur: 'Commerce' },
-  { id: 'numerique', label: 'Services numériques & Développement web', secteur: 'Numérique' },
-  { id: 'elevage', label: 'Élevage & Aquaculture', secteur: 'Agriculture' },
-  { id: 'industrie', label: 'Industrie manufacturière & Artisanat', secteur: 'Industrie' },
-  { id: 'pharma', label: 'Pharmacie & Parapharmacie', secteur: 'Santé' },
-  { id: 'media', label: 'Médias & Communication', secteur: 'Médias' },
+// Fallback statique (si Supabase indisponible)
+const MODELES_FALLBACK_COMMERCIAL = [
+  { id: 'commerce', label: 'Commerce général & Distribution', secteur: 'Commerce', sections: 'Analyse concurrentielle, gestion stocks, stratégie multicanal' },
+  { id: 'agro', label: 'Agrobusiness & Transformation agricole', secteur: 'Agriculture', sections: 'Plan de production, chaîne de valeur, certifications qualité' },
+  { id: 'energie', label: 'Énergie solaire & Efficacité énergétique', secteur: 'Énergie', sections: 'Ressource solaire, modèle revenus, réglementation CRSE' },
 ]
-
-const MODELES_SOCIAUX = [
-  { id: 'microfinance', label: 'Institution de Microfinance (IMF)', secteur: 'Finance solidaire' },
-  { id: 'inclusion_femmes', label: 'Inclusion économique des femmes', secteur: 'Genre & Développement' },
-  { id: 'eau', label: 'Accès à l\'eau potable & Assainissement', secteur: 'WASH' },
-  { id: 'environnement', label: 'Environnement & Gestion des déchets', secteur: 'Environnement' },
-  { id: 'sante_communautaire', label: 'Santé communautaire & Nutrition', secteur: 'Santé' },
-  { id: 'education_rurale', label: 'Éducation rurale & Alphabétisation', secteur: 'Éducation' },
-  { id: 'agriculture_familiale', label: 'Agriculture familiale & Sécurité alimentaire', secteur: 'Agriculture' },
-  { id: 'jeunesse', label: 'Insertion professionnelle des jeunes', secteur: 'Emploi' },
-  { id: 'handicap', label: 'Inclusion des personnes handicapées', secteur: 'Social' },
-  { id: 'habitat', label: 'Habitat social & Logement abordable', secteur: 'Habitat' },
-  { id: 'culture', label: 'Culture & Industries créatives', secteur: 'Culture' },
-  { id: 'numerique_rural', label: 'Numérique rural & E-agriculture', secteur: 'Numérique' },
+const MODELES_FALLBACK_SOCIAL = [
+  { id: 'microfinance', label: 'Institution de Microfinance (IMF)', secteur: 'Finance solidaire', sections: 'Politique crédit, indicateurs performance sociale, conformité PARMEC/BCEAO' },
+  { id: 'eau', label: 'Accès à l\'eau potable & Assainissement', secteur: 'WASH', sections: 'Modèle CPE, étude impact environnemental, conformité normes JMP/OMS' },
 ]
 
 const ZONES = ['Bénin', 'Togo', 'Côte d\'Ivoire', 'Sénégal', 'UEMOA', 'OHADA']
@@ -69,6 +47,19 @@ interface PlanHypo {
 
 export default function ArchitectPage() {
   const [step, setStep] = useState<Step>('modele')
+  const [modelesCommercial, setModelesCommercial] = useState<{id:string,label:string,secteur:string,sections:string}[]>(MODELES_FALLBACK_COMMERCIAL)
+  const [modelesSocial, setModelesSocial] = useState<{id:string,label:string,secteur:string,sections:string}[]>(MODELES_FALLBACK_SOCIAL)
+
+  useEffect(() => {
+    const sb = createBrowserSupabaseClient()
+    sb.from('templates_bp').select('modele_id, type, label, secteur, sections_conditionnelles').order('type').then(({ data }) => {
+      if (!data || data.length === 0) return
+      const comm = data.filter(r => r.type === 'commercial').map(r => ({ id: r.modele_id, label: r.label, secteur: r.secteur, sections: r.sections_conditionnelles || '' }))
+      const soc = data.filter(r => r.type === 'social').map(r => ({ id: r.modele_id, label: r.label, secteur: r.secteur, sections: r.sections_conditionnelles || '' }))
+      if (comm.length > 0) setModelesCommercial(comm)
+      if (soc.length > 0) setModelesSocial(soc)
+    })
+  }, [])
   const [typeModele, setTypeModele] = useState<'commercial' | 'social'>('commercial')
   const [modeleChoisi, setModeleChoisi] = useState<{ id: string; label: string; secteur: string } | null>(null)
   const [form, setForm] = useState<Formulaire>({ nom_projet:'', promoteur:'', zone:'Bénin', juridique:'SARL', capital:'', montant:'', type_financement:'Crédit bancaire', objet:'', emplois:'', garanties:[], partenaire:'' })
@@ -487,7 +478,7 @@ Rédige un business plan complet avec : 1) Résumé exécutif 2) Présentation d
             <button style={{ ...S.btn, ...(typeModele === 'social' ? S.btnGold : S.btnGhost) }} onClick={() => setTypeModele('social')}>🤝 Projets sociaux</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-            {(typeModele === 'commercial' ? MODELES_COMMERCIAUX : MODELES_SOCIAUX).map(m => (
+            {(typeModele === 'commercial' ? modelesCommercial : modelesSocial).map(m => (
               <div key={m.id} onClick={() => { setModeleChoisi(m); setStep('formulaire') }} style={{ ...S.card, cursor: 'pointer', borderColor: modeleChoisi?.id === m.id ? 'rgba(201,168,76,.5)' : 'rgba(201,168,76,.12)', marginBottom: 0 }}>
                 <div style={{ fontSize: '12px', color: '#C9A84C', marginBottom: '4px' }}>{m.secteur}</div>
                 <div style={{ fontSize: '13px', fontWeight: 500, color: '#E8E8E8' }}>{m.label}</div>
