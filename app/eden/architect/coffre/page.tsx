@@ -273,11 +273,16 @@ export default function CoffrePage() {
                     <div style={{ fontSize: '11px', color: '#A8B4C0', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.modele}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', border: '1px solid', whiteSpace: 'nowrap', ...Object.fromEntries(Object.entries(STATUT_COLORS[d.statut] || STATUT_COLORS.brouillon).map(([k]) => [k, ''])) }} className={STATUT_COLORS[d.statut] || STATUT_COLORS.brouillon}>{d.statut}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', border: '1px solid rgba(201,168,76,.3)', background: 'rgba(201,168,76,.08)', color: '#C9A84C', whiteSpace: 'nowrap' }}>{d.statut}</span>
                     <span style={{ fontSize: '10px', color: '#3D4E5F' }}>{new Date(d.created_at).toLocaleDateString('fr-FR')}</span>
                   </div>
                 </div>
                 {d.montant > 0 && <div style={{ fontSize: '11px', color: '#C9A84C', fontWeight: 600, marginTop: '6px' }}>{fmt(d.montant)} FCFA</div>}
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => continuerDossier(d)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(52,152,219,.4)', background: 'rgba(52,152,219,.1)', color: '#3498db', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>▶ Continuer</button>
+                  <button onClick={() => dupliquerDossier(d)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(201,168,76,.3)', background: 'rgba(201,168,76,.06)', color: '#C9A84C', fontSize: '10px', cursor: 'pointer' }}>⧉ Dupliquer</button>
+                  <button onClick={() => supprimer(d.id)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(231,76,60,.3)', background: 'rgba(231,76,60,.06)', color: '#e74c3c', fontSize: '10px', cursor: 'pointer' }}>🗑</button>
+                </div>
               </div>
             ))}
           </div>
