@@ -45,6 +45,34 @@ export default function CoffrePage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [showNewModel, setShowNewModel] = useState(false)
+  const [newModel, setNewModel] = useState({ label: '', secteur: '', type: 'commercial' as 'commercial'|'social', sections_conditionnelles: '' })
+  const [savingModel, setSavingModel] = useState(false)
+
+  async function creerNouveauModele() {
+    const sb = createBrowserSupabaseClient()
+    if (!newModel.label.trim() || !newModel.secteur.trim()) return
+    setSavingModel(true)
+    const modele_id = newModel.label.toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    const id = 'tpl_' + modele_id
+    const { error } = await sb.from('templates_bp').insert({
+      id, modele_id, type: newModel.type,
+      label: newModel.label.trim(),
+      secteur: newModel.secteur.trim(),
+      sections_conditionnelles: newModel.sections_conditionnelles.trim(),
+      squelette_bp: '', squelette_ns: ''
+    })
+    setSavingModel(false)
+    if (error) {
+      setMsg({ text: 'Erreur : ' + error.message, ok: false })
+    } else {
+      setMsg({ text: 'Modele cree avec succes', ok: true })
+      setShowNewModel(false)
+      setNewModel({ label: '', secteur: '', type: 'commercial', sections_conditionnelles: '' })
+    }
+  }
 
   useEffect(() => { load() }, [])
 
@@ -347,5 +375,62 @@ export default function CoffrePage() {
         )}
       </div>
     </div>
+  )
+
+  const modalStyle = {
+    overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    box: { background: '#111D2B', border: '1px solid rgba(201,168,76,.25)', borderRadius: '16px', padding: '28px', width: '480px', maxWidth: '90vw' },
+    input: { width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#E8E8E8', fontSize: '13px', boxSizing: 'border-box' as const },
+    btnGhost: { flex: 1, padding: '9px', borderRadius: '8px', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: '#6B7A8D', fontSize: '13px', cursor: 'pointer' },
+  }
+
+  return (
+    <>
+      {showNewModel && (
+        <div style={modalStyle.overlay}>
+          <div style={modalStyle.box}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#E8E8E8', marginBottom: '20px' }}>Créer un nouveau modèle de Business Plan</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: '#6B7A8D', marginBottom: '4px' }}>Nom du modèle *</div>
+                <input value={newModel.label} onChange={e => setNewModel(m => ({...m, label: e.target.value}))} placeholder="Ex : Pêche artisanale & valorisation" style={modalStyle.input} />
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#6B7A8D', marginBottom: '4px' }}>Secteur *</div>
+                <input value={newModel.secteur} onChange={e => setNewModel(m => ({...m, secteur: e.target.value}))} placeholder="Ex : Pêche, Tourisme, Mining" style={modalStyle.input} />
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#6B7A8D', marginBottom: '4px' }}>Type</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['commercial','social'] as const).map(t => (
+                    <button key={t} onClick={() => setNewModel(m => ({...m, type: t}))}
+                      style={{ flex: 1, padding: '7px', borderRadius: '8px', cursor: 'pointer', fontWeight: newModel.type === t ? 600 : 400,
+                        background: newModel.type === t ? 'rgba(201,168,76,.15)' : 'rgba(255,255,255,.04)',
+                        border: newModel.type === t ? '1px solid rgba(201,168,76,.4)' : '1px solid rgba(255,255,255,.08)',
+                        color: newModel.type === t ? '#C9A84C' : '#6B7A8D', fontSize: '12px' }}>
+                      {t === 'commercial' ? 'Commercial' : 'Social'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#6B7A8D', marginBottom: '4px' }}>Sections spécifiques (optionnel)</div>
+                <input value={newModel.sections_conditionnelles} onChange={e => setNewModel(m => ({...m, sections_conditionnelles: e.target.value}))} placeholder="Ex : Gestion licences, logistique portuaire" style={modalStyle.input} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button onClick={() => setShowNewModel(false)} style={modalStyle.btnGhost}>Annuler</button>
+              <button onClick={creerNouveauModele} disabled={savingModel || !newModel.label.trim() || !newModel.secteur.trim()}
+                style={{ flex: 2, padding: '9px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: savingModel ? 'wait' : 'pointer',
+                  background: (newModel.label && newModel.secteur) ? 'rgba(201,168,76,.15)' : 'rgba(255,255,255,.04)',
+                  border: (newModel.label && newModel.secteur) ? '1px solid rgba(201,168,76,.4)' : '1px solid rgba(255,255,255,.08)',
+                  color: (newModel.label && newModel.secteur) ? '#C9A84C' : '#6B7A8D' }}>
+                {savingModel ? 'Creation...' : 'Creer le modele'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
