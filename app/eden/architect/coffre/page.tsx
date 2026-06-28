@@ -146,6 +146,30 @@ export default function CoffrePage() {
         </div>
       )}
 
+      {/* Statistiques par statut */}
+      <div style={{ display: 'flex', gap: '10px', padding: '0 32px 16px', flexWrap: 'wrap' }}>
+        {STATUTS.map(s => {
+          const dossiersStatut = dossiers.filter(d => d.statut === s)
+          const count = dossiersStatut.length
+          const montantTotal = dossiersStatut.reduce((sum, d) => sum + (d.montant || 0), 0)
+          const colorMap: Record<string, string> = {
+            brouillon: '#6B7A8D', 'en cours': '#D9A441', finalisé: '#3B82F6', soumis: '#A855F7', financé: '#2ecc71', rejeté: '#e74c3c'
+          }
+          return (
+            <div key={s}
+              onClick={() => setFiltreStatut(filtreStatut === s ? 'tous' : s)}
+              style={{ cursor: 'pointer', minWidth: '140px', flex: '1 1 140px', background: filtreStatut === s ? 'rgba(201,168,76,.08)' : 'rgba(255,255,255,.03)', border: `1px solid ${filtreStatut === s ? 'rgba(201,168,76,.35)' : 'rgba(255,255,255,.06)'}`, borderRadius: '10px', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colorMap[s] }} />
+                <span style={{ fontSize: '11px', color: '#A8B4C0', fontWeight: 600, textTransform: 'capitalize' }}>{s}</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#E8E8E8' }}>{count}</div>
+              <div style={{ fontSize: '10px', color: '#6B7A8D', marginTop: '2px' }}>{fmt(montantTotal)} FCFA</div>
+            </div>
+          )
+        })}
+      </div>
+
       <div style={{ display: 'flex', height: 'calc(100vh - 100px)' }}>
         {/* Liste gauche */}
         <div style={{ width: '380px', minWidth: '320px', borderRight: '1px solid rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column' }}>
