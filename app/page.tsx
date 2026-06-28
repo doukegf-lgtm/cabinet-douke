@@ -2558,6 +2558,7 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
     { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin },
+    { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin },
   ].filter((n) => n.show);
 
   const displayObjectives = (() => {
@@ -2753,7 +2754,25 @@ export default function FullyLoadedPremiumDashboard() {
                     <div style={{ fontSize:'48px', marginBottom:'16px' }}>🌿</div>
                     <div style={{ fontSize:'18px', fontWeight:700, color:'#C9A84C', marginBottom:'8px' }}>Système EDEN</div>
                     <p style={{ fontSize:'13px', color:'#6B7A8D', marginBottom:'24px' }}>Accédez à la plateforme complète dans un espace dédié.</p>
-                    <a href='/eden' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#C9A84C,#8a6d2f)', borderRadius:'10px', color:'#0F1923', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir EDEN →</a>
+                    <div style={{ display:'flex', gap:'12px', justifyContent:'center', flexWrap:'wrap' }}>
+                      <a href='/eden' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#C9A84C,#8a6d2f)', borderRadius:'10px', color:'#0F1923', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir EDEN →</a>
+                      <a href='/scout' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#3B82F6,#1d4ed8)', borderRadius:'10px', color:'#fff', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>🔵 Ouvrir SCOUT →</a>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {currentView === 'SCOUT' && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%' }}>
+                  <div style={{ textAlign:'center' }}>
+                    <div style={{ fontSize:'48px', marginBottom:'16px' }}>🔵</div>
+                    <div style={{ fontSize:'18px', fontWeight:700, color:'#3B82F6', marginBottom:'8px' }}>SCOUT — Intelligence Commerciale</div>
+                    <p style={{ fontSize:'13px', color:'#6B7A8D', marginBottom:'8px' }}>Opportunités · Prospection qualifiée · Partenaires UEMOA</p>
+                    <div style={{ display:'flex', gap:'10px', justifyContent:'center', flexWrap:'wrap', marginBottom:'24px' }}>
+                      <span style={{ fontSize:'11px', padding:'4px 12px', borderRadius:'20px', background:'rgba(201,168,76,.1)', color:'#C9A84C', border:'1px solid rgba(201,168,76,.3)' }}>🎯 Opportunités de financement</span>
+                      <span style={{ fontSize:'11px', padding:'4px 12px', borderRadius:'20px', background:'rgba(52,152,219,.1)', color:'#3498db', border:'1px solid rgba(52,152,219,.3)' }}>🤖 Prospection IA</span>
+                      <span style={{ fontSize:'11px', padding:'4px 12px', borderRadius:'20px', background:'rgba(46,204,113,.1)', color:'#2ecc71', border:'1px solid rgba(46,204,113,.3)' }}>🤝 Partenaires UEMOA</span>
+                    </div>
+                    <a href='/scout' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#3B82F6,#1d4ed8)', borderRadius:'10px', color:'#fff', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir SCOUT →</a>
                   </div>
                 </div>
               )}
