@@ -2,6 +2,15 @@
 import { useState, useEffect } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
 
+interface Structure {
+  id: string
+  nom: string
+  code: string
+  org_id: string
+  description: string
+  actif: boolean
+}
+
 interface ProfileRow {
   id: string
   username: string
@@ -19,9 +28,12 @@ export default function EdenAdminPage() {
   const [saving, setSaving] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string>('')
-  const [tab, setTab] = useState<'acces'|'services'>('acces')
+  const [tab, setTab] = useState<'acces'|'services'|'structures'>('acces')
   const [newService, setNewService] = useState({ nom: '', description: '' })
   const [addingService, setAddingService] = useState(false)
+  const [structures, setStructures] = useState<{id:string,nom:string,code:string,org_id:string,description:string}[]>([])
+  const [newStruct, setNewStruct] = useState({ nom:'', code:'', description:'' })
+  const [addingStruct, setAddingStruct] = useState(false)
   const sb = createBrowserSupabaseClient()
 
   useEffect(() => {
@@ -77,6 +89,26 @@ export default function EdenAdminPage() {
   }
 
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#E8E8E8', fontSize: '12px', boxSizing: 'border-box' }
+  const STRUCT_NATIVES = [
+    { id:'douke', nom:'Cabinet DOUKE', code:'DOUKE', org_id:'org_douke_01', description:'Structure principale — finances, conseil, PPP' },
+    { id:'conacce', nom:'CONACCE', code:'CONACCE', org_id:'c1111111-1111-1111-1111-111111111111', description:'ONG humanitaire partenaire' },
+    ...structures,
+  ]
+
+  async function addStructure() {
+    if (!newStruct.nom.trim() || !newStruct.code.trim()) return
+    setAddingStruct(true)
+    const org_id = 'org_' + newStruct.code.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_01'
+    const entry = { id: org_id, nom: newStruct.nom.trim(), code: newStruct.code.trim().toUpperCase(), org_id, description: newStruct.description.trim() }
+    const existing = JSON.parse(localStorage.getItem('douke_structures') || '[]')
+    existing.push(entry)
+    localStorage.setItem('douke_structures', JSON.stringify(existing))
+    setStructures(existing)
+    setNewStruct({ nom:'', code:'', description:'' })
+    setMsg({ text: 'Structure "' + entry.nom + '" ajoutee (org_id: ' + org_id + ')', ok: true })
+    setAddingStruct(false)
+  }
+
   const TH: React.CSSProperties = { padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#6B7A8D', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid rgba(201,168,76,.12)', background: '#1E2D3D' }
   const TD: React.CSSProperties = { padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.04)', fontSize: '13px', color: '#E8E8E8' }
 
@@ -86,7 +118,7 @@ export default function EdenAdminPage() {
       <div style={{ fontSize: '13px', color: '#6B7A8D', marginBottom: '20px' }}>Acces utilisateurs et services DOUKE</div>
       {msg && <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', border: '1px solid', background: msg.ok ? 'rgba(46,204,113,.08)' : 'rgba(231,76,60,.08)', borderColor: msg.ok ? 'rgba(46,204,113,.3)' : 'rgba(231,76,60,.3)', color: msg.ok ? '#2ecc71' : '#e74c3c' }}>{msg.ok ? 'OK' : 'ERREUR'} {msg.text}</div>}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,.08)', marginBottom: '20px' }}>
-        {([['acces','Acces utilisateurs'],['services','Services DOUKE']] as const).map(([t,l]) => (
+        {([['acces','Acces utilisateurs'],['services','Services DOUKE'],['structures','Structures']] as const).map(([t,l]) => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: '9px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${tab===t?'#C9A84C':'transparent'}`, color: tab===t?'#C9A84C':'#6B7A8D', fontWeight: tab===t?600:400, fontSize: '13px', cursor: 'pointer' }}>{l}</button>
         ))}
       </div>
@@ -160,6 +192,49 @@ export default function EdenAdminPage() {
             </div>
             <button onClick={addService} disabled={addingService || !newService.nom.trim()} style={{ padding:'8px 18px', borderRadius:'8px', border:'1px solid rgba(201,168,76,.4)', background:'rgba(201,168,76,.1)', color:'#C9A84C', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
               {addingService?'...':'Ajouter le service'}
+            </button>
+          </div>
+        </div>
+      )}
+      {tab === 'structures' && (
+        <div>
+          <div style={{ background:'#162030', border:'1px solid rgba(201,168,76,.15)', borderRadius:'12px', overflow:'hidden', marginBottom:'16px' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead><tr>{['Structure','Code','Org ID','Description'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+              <tbody>
+                {STRUCT_NATIVES.length === 0 ? (
+                  <tr><td colSpan={4} style={{ padding:'20px', textAlign:'center', color:'#6B7A8D', fontSize:'13px' }}>Aucune structure — seules DOUKE et CONACCE sont intégrées nativement</td></tr>
+                ) : STRUCT_NATIVES.map((st) => (
+                  <tr key={st.id}>
+                    <td style={{ ...TD, fontWeight:500 }}>{st.nom}</td>
+                    <td style={{ ...TD, fontFamily:'monospace', fontSize:'12px', color:'#C9A84C' }}>{st.code}</td>
+                    <td style={{ ...TD, fontFamily:'monospace', fontSize:'11px', color:'#6B7A8D' }}>{st.org_id}</td>
+                    <td style={{ ...TD, fontSize:'12px', color:'#6B7A8D' }}>{st.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ background:'#162030', border:'1px solid rgba(201,168,76,.15)', borderRadius:'12px', padding:'16px' }}>
+            <div style={{ fontSize:'13px', fontWeight:600, color:'#E8E8E8', marginBottom:'4px' }}>Ajouter une nouvelle structure</div>
+            <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'12px' }}>Une nouvelle structure crée un espace séparé dans l'application (objectifs, prospects, services distincts)</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+              <div>
+                <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'4px' }}>Nom de la structure *</div>
+                <input value={newStruct.nom} onChange={e => setNewStruct(s => ({...s, nom:e.target.value}))} placeholder="Ex: DOUKE Sénégal" style={inp} />
+              </div>
+              <div>
+                <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'4px' }}>Code court * (ex: DOUKE_SN)</div>
+                <input value={newStruct.code} onChange={e => setNewStruct(s => ({...s, code:e.target.value.toUpperCase()}))} placeholder="DOUKE_SN" style={inp} />
+              </div>
+            </div>
+            <div style={{ marginBottom:'10px' }}>
+              <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'4px' }}>Description</div>
+              <input value={newStruct.description} onChange={e => setNewStruct(s => ({...s, description:e.target.value}))} placeholder="Description de la structure..." style={inp} />
+            </div>
+            <button onClick={addStructure} disabled={addingStruct || !newStruct.nom.trim() || !newStruct.code.trim()}
+              style={{ padding:'8px 18px', borderRadius:'8px', border:'1px solid rgba(201,168,76,.4)', background:'rgba(201,168,76,.1)', color:'#C9A84C', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
+              {addingStruct ? '...' : 'Créer la structure'}
             </button>
           </div>
         </div>
