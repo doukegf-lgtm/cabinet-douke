@@ -1104,6 +1104,7 @@ function ObjectifsView({
           <button onClick={onAddObjective} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2">
             <Plus size={14} /> Nouveau dossier
           </button>
+          </div>
         )}
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
@@ -1210,13 +1211,14 @@ function ObjectifsView({
 // ÉQUIPE VIEW
 // ============================================================
 function EquipeView({
-  collaborators, objectives, realisations, currentUser, onAddCollaborator, onEditCollaborator, onDeleteCollaborator,
+  collaborators, objectives, realisations, currentUser, onAddCollaborator, onAddStructure, onEditCollaborator, onDeleteCollaborator,
 }: {
   collaborators: Collaborator[];
   objectives: Objective[];
   realisations: Realisation[];
   currentUser: AuthAccount;
   onAddCollaborator: () => void;
+  onAddStructure: () => void;
   onEditCollaborator: (c: Collaborator) => void;
   onDeleteCollaborator: (id: string) => void;
 }) {
@@ -1237,6 +1239,10 @@ function EquipeView({
           <p className="text-[11px] text-slate-400 font-medium mt-0.5">{visibleCollabs.length} membre(s) dans votre périmètre</p>
         </div>
         {canManageUsers && (
+          <div className="flex gap-3">
+          <button onClick={onAddStructure} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2">
+            <span>🏢</span> Nouvelle structure
+          </button>
           <button onClick={onAddCollaborator} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
             <UserPlus size={16} /> Nouveau Collaborateur
           </button>
@@ -2349,6 +2355,9 @@ export default function FullyLoadedPremiumDashboard() {
 
   const [isObjectiveModalOpen, setIsObjectiveModalOpen] = useState(false);
   const [isCollaboratorModalOpen, setIsCollaboratorModalOpen] = useState(false);
+  const [showStructureModal, setShowStructureModal] = useState(false);
+  const [structureForm, setStructureForm] = useState({ nom:'', code:'', description:'' });
+  const [savingStructure, setSavingStructure] = useState(false);
   const [isRealisationModalOpen, setIsRealisationModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isPlannedActionModalOpen, setIsPlannedActionModalOpen] = useState(false);
@@ -2946,6 +2955,7 @@ export default function FullyLoadedPremiumDashboard() {
                 <EquipeView collaborators={collaborators} objectives={objectives} realisations={realisations}
                   currentUser={currentUser}
                   onAddCollaborator={() => { setEditingCollaborator(null); setIsCollaboratorModalOpen(true); }}
+                  onAddStructure={() => setShowStructureModal(true)}
                   onEditCollaborator={(c) => { setEditingCollaborator(c); setIsCollaboratorModalOpen(true); }}
                   onDeleteCollaborator={handleDeleteCollaborator} />
               )}
@@ -2971,6 +2981,47 @@ export default function FullyLoadedPremiumDashboard() {
         onClose={() => { setIsObjectiveModalOpen(false); setEditingObjective(null); }}
         onSave={handleSaveObjective} onDelete={handleDeleteObjective}
         existing={editingObjective} collaborators={collaborators} currentUser={currentUser} />
+      {showStructureModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">🏢 Nouvelle Structure</h3>
+              <button onClick={() => setShowStructureModal(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Nom de la structure *</label>
+                <input value={structureForm.nom} onChange={e => setStructureForm(f => ({...f, nom:e.target.value}))} placeholder="Ex: DOUKE Sénégal" className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Code court * (ex: DOUKE_SN)</label>
+                <input value={structureForm.code} onChange={e => setStructureForm(f => ({...f, code:e.target.value.toUpperCase()}))} placeholder="DOUKE_SN" className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                <input value={structureForm.description} onChange={e => setStructureForm(f => ({...f, description:e.target.value}))} placeholder="Description de la structure..." className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowStructureModal(false)} className="flex-1 border border-slate-200 py-3 rounded-xl text-xs font-black text-slate-500 hover:bg-slate-50">Annuler</button>
+              <button disabled={savingStructure || !structureForm.nom.trim() || !structureForm.code.trim()} onClick={() => {
+                setSavingStructure(true)
+                const org_id = 'org_' + structureForm.code.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_01'
+                const entry = { id: org_id, nom: structureForm.nom.trim(), code: structureForm.code.trim(), org_id, description: structureForm.description.trim() }
+                const existing = JSON.parse(localStorage.getItem('douke_structures') || '[]')
+                existing.push(entry)
+                localStorage.setItem('douke_structures', JSON.stringify(existing))
+                setStructureForm({ nom:'', code:'', description:'' })
+                setShowStructureModal(false)
+                setSavingStructure(false)
+                alert('Structure "' + entry.nom + '" créée (org_id: ' + org_id + ')')
+              }} className="flex-2 flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-xs font-black disabled:opacity-50">
+                {savingStructure ? '...' : 'Créer la structure'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <CollaboratorModal isOpen={isCollaboratorModalOpen}
         onClose={() => { setIsCollaboratorModalOpen(false); setEditingCollaborator(null); }}
         onSave={handleSaveCollaborator} existing={editingCollaborator} allCollaborators={collaborators} />
