@@ -45,6 +45,9 @@ type Objective = {
   contact_email: string | null;
   linked_type: 'dossier' | 'admin' | 'autre';
   linked_dossier_id: string | null;
+  valeur_cible: number;
+  unite: string;
+  poids: number;
 };
 
 type PlannedAction = {
@@ -94,6 +97,7 @@ type Realisation = {
   duration_hours: number;
   progress_after: number;
   validated_by: string | null;
+  valeur_realisee: number;
 };
 
 type Remarque = {
@@ -942,13 +946,14 @@ function JuniorDashboard({
 // RÉALISATIONS VIEW
 // ============================================================
 function RealisationsView({
-  realisations, objectives, collaborators, currentUser, onAdd,
+  realisations, objectives, collaborators, currentUser, onAdd, onValiderRealisation,
 }: {
   realisations: Realisation[];
   objectives: Objective[];
   collaborators: Collaborator[];
   currentUser: AuthAccount;
   onAdd: () => void;
+  onValiderRealisation: (id: string) => void;
 }) {
   const isJuniorOrSecretary = ['Junior', 'Secretaire'].includes(currentUser.role);
   const isSenior = ['Senior Analyst', 'Field Lead'].includes(currentUser.role);
@@ -1021,6 +1026,10 @@ function RealisationsView({
                     <td className="p-4 text-center">
                       {r.validated_by ? (
                         <span className="text-[9px] font-black bg-emerald-50 border border-emerald-100 text-emerald-600 px-2 py-0.5 rounded uppercase">✓ Validé</span>
+                      ) : !isJuniorOrSecretary ? (
+                        <button onClick={() => onValiderRealisation(r.id)} className="text-[9px] font-black bg-blue-50 border border-blue-200 text-blue-600 px-2 py-0.5 rounded uppercase hover:bg-blue-100 transition-all cursor-pointer">
+                          Valider →
+                        </button>
                       ) : (
                         <span className="text-[9px] font-black bg-slate-50 border border-slate-200 text-slate-400 px-2 py-0.5 rounded uppercase">En attente</span>
                       )}
@@ -1335,7 +1344,22 @@ function EquipeView({
                 <div className="grid grid-cols-2 text-left text-xs mb-2">
                   <div>
                     <span className="text-[9px] font-black text-slate-400 uppercase block tracking-wider">Performance</span>
-                    <span className="text-sm font-black text-slate-800">{c.performance}%</span>
+                    {(() => {
+                      const cObjs = objectives.filter(o => o.assigned_to === c.id)
+                      const cReals = realisations.filter(r => r.user_id === c.id)
+                      const cObjDone = cObjs.filter(o => o.progress_percentage >= 100).length
+                      const cAvg = cObjs.length > 0 ? Math.round(cObjs.reduce((s,o) => s + o.progress_percentage, 0) / cObjs.length) : 0
+                      const cValidated = cReals.filter(r => r.validated_by).length
+                      const cValidPct = cReals.length > 0 ? Math.round(cValidated / cReals.length * 100) : 0
+                      const cScore = Math.min(100, Math.round(
+                        (cAvg * 0.4) +
+                        (cObjs.length > 0 ? (cObjDone / cObjs.length) * 30 : 0) +
+                        (cValidPct * 0.2) +
+                        Math.min(10, cReals.length)
+                      ))
+                      const col = cScore >= 85 ? 'text-emerald-600' : cScore >= 70 ? 'text-blue-600' : cScore >= 50 ? 'text-amber-600' : 'text-rose-600'
+                      return <span className={`text-sm font-black ${col}`} title={`Objectifs: ${cAvg}% moy · Complétés: ${cObjDone}/${cObjs.length} · Réalisations validées: ${cValidated}/${cReals.length}`}>{cScore}%</span>
+                    })()}
                   </div>
                   <div className="text-right">
                     <span className="text-[9px] font-black text-slate-400 uppercase block tracking-wider">Statut</span>
@@ -1394,6 +1418,9 @@ function ObjectiveModal({
     contact_email: null,
     linked_type: 'dossier',
     linked_dossier_id: null,
+    valeur_cible: 0,
+    unite: 'FCFA',
+    poids: 1,
   };
 
   const [form, setForm] = useState<Objective>(defaultForm);
@@ -1445,6 +1472,26 @@ function ObjectiveModal({
             </div>
           </div>
 
+          {/* OBJECTIF CHIFFRÉ */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Valeur cible</label>
+              <input type="number" min="0" value={form.valeur_cible || 0} onChange={(e) => setForm((f) => ({ ...f, valeur_cible: parseFloat(e.target.value) || 0 }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500" />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Unité</label>
+              <select value={form.unite || 'FCFA'} onChange={(e) => setForm((f) => ({ ...f, unite: e.target.value }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none bg-white">
+                {['FCFA','dossiers','clients','formations','heures','rapports','autre'].map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+            <div className="col-span-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Poids (1-5)</label>
+              <input type="number" min="1" max="5" value={form.poids || 1} onChange={(e) => setForm((f) => ({ ...f, poids: parseInt(e.target.value) || 1 }))}
+                className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500" />
+            </div>
+          </div>
           {/* INTITULÉ */}
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Intitulé de la mission *</label>
@@ -1783,7 +1830,7 @@ function RealisationModal({
   currentUser: AuthAccount;
   collaborators: Collaborator[];
 }) {
-  const defaultForm = { objective_id: '', description: '', date: todayISO(), duration_hours: 1, progress_after: 0 };
+  const defaultForm = { objective_id: '', description: '', date: todayISO(), duration_hours: 1, progress_after: 0, valeur_realisee: 0 };
   const [form, setForm] = useState(defaultForm);
   const [selectedObj, setSelectedObj] = useState<Objective | null>(null);
   useEffect(() => { if (!isOpen) { setForm(defaultForm); setSelectedObj(null); } }, [isOpen]);
@@ -1858,6 +1905,23 @@ function RealisationModal({
                 <span>Progression après cette action</span>
                 <span className={`font-black ${form.progress_after >= selectedObj.progress_percentage ? 'text-emerald-600' : 'text-rose-600'}`}>{form.progress_after}%</span>
               </label>
+              {selectedObj && selectedObj.valeur_cible > 0 && (
+                <div className="mb-4">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Valeur réalisée ({selectedObj.unite || 'FCFA'}) — Cible : {selectedObj.valeur_cible.toLocaleString('fr-FR')} {selectedObj.unite}
+                  </label>
+                  <input type="number" min="0" value={form.valeur_realisee || 0}
+                    onChange={(e) => {
+                      const vr = parseFloat(e.target.value) || 0
+                      const pct = selectedObj.valeur_cible > 0 ? Math.min(100, Math.round(vr / selectedObj.valeur_cible * 100)) : form.progress_after
+                      setForm((f) => ({ ...f, valeur_realisee: vr, progress_after: pct }))
+                    }}
+                    className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+                  <div className="text-[10px] text-blue-600 font-black mt-1">
+                    Progression auto : {selectedObj.valeur_cible > 0 ? Math.min(100, Math.round((form.valeur_realisee || 0) / selectedObj.valeur_cible * 100)) : 0}%
+                  </div>
+                </div>
+              )}
               <input type="range" min="0" max="100" value={form.progress_after}
                 onChange={(e) => setForm((f) => ({ ...f, progress_after: parseInt(e.target.value) }))}
                 className="w-full accent-blue-600" />
@@ -2466,6 +2530,9 @@ export default function FullyLoadedPremiumDashboard() {
         title: formData.title,
         structure_type: formData.structure_type,
         category: formData.category,
+        valeur_cible: formData.valeur_cible || 0,
+        unite: formData.unite || 'FCFA',
+        poids: formData.poids || 1,
         status: formData.status,
         priority: formData.priority,
         deadline: formData.deadline,
@@ -2572,6 +2639,18 @@ export default function FullyLoadedPremiumDashboard() {
     } catch (err) { console.error('Erreur delete collaborator:', err); }
   };
 
+  const handleValiderRealisation = async (id: string) => {
+    try {
+      await apiRequest('update', 'realisations', { validated_by: currentUser?.collaborator_id || null }, id)
+      await apiRequest('insert', 'activities', {
+        user_id: currentUser?.collaborator_id || null,
+        description: `${currentUser?.name || 'Admin'} a valide une realisation`,
+        date: todayISO(), type: 'validation',
+      })
+      triggerRefresh()
+    } catch (err) { console.error('Erreur validation:', err) }
+  }
+
   const handleSaveRealisation = async (formData: Realisation) => {
     try {
       await apiRequest('insert', 'realisations', {
@@ -2579,6 +2658,7 @@ export default function FullyLoadedPremiumDashboard() {
         objective_id: formData.objective_id, description: formData.description,
         date: formData.date, duration_hours: formData.duration_hours,
         progress_after: formData.progress_after, validated_by: null,
+        valeur_realisee: formData.valeur_realisee || 0,
       });
       if (formData.objective_id && formData.progress_after !== undefined) {
         await apiRequest('update', 'objectives', {
@@ -2823,7 +2903,8 @@ export default function FullyLoadedPremiumDashboard() {
               )}
               {currentView === 'Réalisations' && (
                 <RealisationsView realisations={realisations} objectives={objectives} collaborators={collaborators}
-                  currentUser={currentUser} onAdd={() => setIsRealisationModalOpen(true)} />
+                  currentUser={currentUser} onAdd={() => setIsRealisationModalOpen(true)}
+                  onValiderRealisation={handleValiderRealisation} />
               )}
               {currentView === 'Planification' && (
                 <PlanificationView
