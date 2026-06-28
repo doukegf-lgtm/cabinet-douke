@@ -8,98 +8,160 @@ interface ProfileRow {
   name: string
   role: string
   eden_access: boolean
+  scout_access: boolean
 }
+interface Service { id: string; nom: string; description: string; actif: boolean }
 
 export default function EdenAdminPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [tab, setTab] = useState<'acces'|'services'>('acces')
+  const [newService, setNewService] = useState({ nom: '', description: '' })
+  const [addingService, setAddingService] = useState(false)
+  const sb = createBrowserSupabaseClient()
 
   useEffect(() => {
-    async function load() {
-      const supabase = createBrowserSupabaseClient()
-      const { data: accounts } = await supabase.from('auth_accounts').select('id').limit(1)
-      if (accounts?.[0]) setCurrentUserId(accounts[0].id)
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, name, role, eden_access')
-        .order('role', { ascending: false })
-      setProfiles(data || [])
-      setLoading(false)
-    }
+    const raw = localStorage.getItem('eden_current_user')
+    if (raw) { try { const u = JSON.parse(raw); setCurrentUserId(u.id || '') } catch {} }
     load()
   }, [])
 
-  async function toggleAccess(p: ProfileRow) {
-    setSaving(p.id)
-    const supabase = createBrowserSupabaseClient()
-    const { error } = await supabase
-      .from('profiles')
-      .update({ eden_access: !p.eden_access })
-      .eq('id', p.id)
-    if (error) {
-      setMsg({ text: 'Erreur : ' + error.message, ok: false })
-    } else {
-      setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, eden_access: !p.eden_access } : x))
-      setMsg({ text: `Accès ${!p.eden_access ? 'activé' : 'désactivé'} pour ${p.name}`, ok: true })
+  async function load() {
+    setLoading(true)
+    const [acc, svc] = await Promise.all([
+      sb.from('auth_accounts').select('id, username, name, role, eden_access, scout_access').order('name'),
+      sb.from('scout_services_douke').select('*').order('nom')
+    ])
+    setProfiles(acc.data || [])
+    setServices(svc.data || [])
+    setLoading(false)
+  }
+
+  async function toggleAccess(p: ProfileRow, field: 'eden_access' | 'scout_access') {
+    setSaving(p.id + field)
+    const newVal = !p[field]
+    const { error } = await sb.from('auth_accounts').update({ [field]: newVal }).eq('id', p.id)
+    if (error) { setMsg({ text: 'Erreur : ' + error.message, ok: false }) }
+    else {
+      setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, [field]: newVal } : x))
+      setMsg({ text: `Acces ${field==='eden_access'?'EDEN':'SCOUT'} ${newVal?'active':'desactive'} pour ${p.name}`, ok: true })
       setTimeout(() => setMsg(null), 3000)
     }
     setSaving(null)
   }
 
+  async function toggleService(svc: Service) {
+    await sb.from('scout_services_douke').update({ actif: !svc.actif }).eq('id', svc.id)
+    setServices(prev => prev.map(s => s.id === svc.id ? { ...s, actif: !svc.actif } : s))
+  }
+
+  async function deleteService(id: string) {
+    if (!confirm('Supprimer ce service ?')) return
+    await sb.from('scout_services_douke').delete().eq('id', id)
+    setServices(prev => prev.filter(s => s.id !== id))
+  }
+
+  async function addService() {
+    if (!newService.nom.trim()) return
+    setAddingService(true)
+    const { data } = await sb.from('scout_services_douke').insert({ nom: newService.nom.trim(), description: newService.description.trim(), actif: true }).select().single()
+    if (data) setServices(prev => [...prev, data])
+    setNewService({ nom: '', description: '' })
+    setAddingService(false)
+    setMsg({ text: 'Service ajoute', ok: true })
+    setTimeout(() => setMsg(null), 2000)
+  }
+
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#E8E8E8', fontSize: '12px', boxSizing: 'border-box' }
+  const TH: React.CSSProperties = { padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#6B7A8D', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid rgba(201,168,76,.12)', background: '#1E2D3D' }
+  const TD: React.CSSProperties = { padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.04)', fontSize: '13px', color: '#E8E8E8' }
+
   return (
-    <div style={{ maxWidth:'780px' }}>
-      <div style={{ fontSize:'20px', fontWeight:700, color:'#C9A84C', marginBottom:'4px' }}>⚙️ Gestion des accès EDEN</div>
-      <div style={{ fontSize:'13px', color:'#6B7A8D', marginBottom:'24px', lineHeight:'1.6' }}>
-        Activez ou désactivez l'accès au système EDEN pour chaque membre de l'équipe.
+    <div style={{ maxWidth: '900px' }}>
+      <div style={{ fontSize: '20px', fontWeight: 700, color: '#C9A84C', marginBottom: '4px' }}>Administration EDEN</div>
+      <div style={{ fontSize: '13px', color: '#6B7A8D', marginBottom: '20px' }}>Acces utilisateurs et services DOUKE</div>
+      {msg && <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', border: '1px solid', background: msg.ok ? 'rgba(46,204,113,.08)' : 'rgba(231,76,60,.08)', borderColor: msg.ok ? 'rgba(46,204,113,.3)' : 'rgba(231,76,60,.3)', color: msg.ok ? '#2ecc71' : '#e74c3c' }}>{msg.ok ? 'OK' : 'ERREUR'} {msg.text}</div>}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,.08)', marginBottom: '20px' }}>
+        {([['acces','Acces utilisateurs'],['services','Services DOUKE']] as const).map(([t,l]) => (
+          <button key={t} onClick={() => setTab(t)} style={{ padding: '9px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${tab===t?'#C9A84C':'transparent'}`, color: tab===t?'#C9A84C':'#6B7A8D', fontWeight: tab===t?600:400, fontSize: '13px', cursor: 'pointer' }}>{l}</button>
+        ))}
       </div>
-      {msg && (
-        <div style={{ padding:'10px 16px', borderRadius:'8px', marginBottom:'16px', fontSize:'13px', border:'1px solid', background: msg.ok ? 'rgba(46,204,113,.08)' : 'rgba(231,76,60,.08)', borderColor: msg.ok ? 'rgba(46,204,113,.3)' : 'rgba(231,76,60,.3)', color: msg.ok ? '#2ecc71' : '#e74c3c' }}>
-          {msg.ok ? '✅' : '⚠️'} {msg.text}
+
+      {tab === 'acces' && (
+        <div style={{ background: '#162030', border: '1px solid rgba(201,168,76,.15)', borderRadius: '12px', overflow: 'hidden' }}>
+          {loading ? <div style={{ padding: '20px', color: '#6B7A8D', fontSize: '13px' }}>Chargement...</div> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Membre','Username','Role','EDEN','SCOUT'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+              <tbody>
+                {profiles.map(p => (
+                  <tr key={p.id}>
+                    <td style={{ ...TD, fontWeight: 500 }}>{p.name}</td>
+                    <td style={{ ...TD, fontSize: '12px', color: '#6B7A8D', fontFamily: 'monospace' }}>@{p.username}</td>
+                    <td style={TD}><span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: p.role.includes('Admin')?'rgba(201,168,76,.15)':'rgba(255,255,255,.06)', color: p.role.includes('Admin')?'#C9A84C':'#6B7A8D' }}>{p.role}</span></td>
+                    <td style={TD}>
+                      {p.id !== currentUserId ? (
+                        <button onClick={() => toggleAccess(p,'eden_access')} disabled={saving===p.id+'eden_access'} style={{ padding:'4px 12px', borderRadius:'6px', fontSize:'11px', fontWeight:500, cursor:'pointer', border:'1px solid', background:p.eden_access?'rgba(46,204,113,.1)':'rgba(231,76,60,.08)', color:p.eden_access?'#2ecc71':'#e74c3c', borderColor:p.eden_access?'rgba(46,204,113,.3)':'rgba(231,76,60,.2)' }}>
+                          {saving===p.id+'eden_access'?'...':p.eden_access?'Actif':'Inactif'}
+                        </button>
+                      ) : <span style={{ fontSize:'11px', color:'#2ecc71' }}>Vous</span>}
+                    </td>
+                    <td style={TD}>
+                      {p.id !== currentUserId ? (
+                        <button onClick={() => toggleAccess(p,'scout_access')} disabled={saving===p.id+'scout_access'} style={{ padding:'4px 12px', borderRadius:'6px', fontSize:'11px', fontWeight:500, cursor:'pointer', border:'1px solid', background:p.scout_access?'rgba(52,152,219,.1)':'rgba(231,76,60,.08)', color:p.scout_access?'#3498db':'#e74c3c', borderColor:p.scout_access?'rgba(52,152,219,.3)':'rgba(231,76,60,.2)' }}>
+                          {saving===p.id+'scout_access'?'...':p.scout_access?'Actif':'Inactif'}
+                        </button>
+                      ) : <span style={{ fontSize:'11px', color:'#3498db' }}>Vous</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
-      {loading ? (
-        <div style={{ color:'#6B7A8D', fontSize:'13px' }}>Chargement…</div>
-      ) : (
-        <div style={{ background:'#162030', border:'1px solid rgba(201,168,76,.15)', borderRadius:'12px', overflow:'hidden' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr>
-                {['Membre','Username','Rôle','Accès EDEN','Action'].map(h => (
-                  <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'11px', fontWeight:600, color:'#6B7A8D', textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid rgba(201,168,76,.12)', background:'#1E2D3D' }}>{h}</th>
+
+      {tab === 'services' && (
+        <div>
+          <div style={{ background:'#162030', border:'1px solid rgba(201,168,76,.15)', borderRadius:'12px', overflow:'hidden', marginBottom:'16px' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead><tr>{['Service','Description','Statut','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+              <tbody>
+                {services.map(svc => (
+                  <tr key={svc.id}>
+                    <td style={{ ...TD, fontWeight:500 }}>{svc.nom}</td>
+                    <td style={{ ...TD, fontSize:'12px', color:'#6B7A8D' }}>{svc.description}</td>
+                    <td style={TD}><span style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'10px', background:svc.actif?'rgba(46,204,113,.1)':'rgba(231,76,60,.08)', color:svc.actif?'#2ecc71':'#e74c3c', border:`1px solid ${svc.actif?'rgba(46,204,113,.25)':'rgba(231,76,60,.2)'}` }}>{svc.actif?'Actif':'Inactif'}</span></td>
+                    <td style={TD}>
+                      <div style={{ display:'flex', gap:'6px' }}>
+                        <button onClick={() => toggleService(svc)} style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'11px', cursor:'pointer', border:'1px solid rgba(201,168,76,.3)', background:'rgba(201,168,76,.08)', color:'#C9A84C' }}>{svc.actif?'Desactiver':'Activer'}</button>
+                        <button onClick={() => deleteService(svc.id)} style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'11px', cursor:'pointer', border:'1px solid rgba(231,76,60,.3)', background:'rgba(231,76,60,.08)', color:'#e74c3c' }}>Supprimer</button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map(p => (
-                <tr key={p.id}>
-                  <td style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,.04)', fontSize:'13px', color:'#E8E8E8', fontWeight:500 }}>{p.name}</td>
-                  <td style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,.04)', fontSize:'12px', color:'#6B7A8D', fontFamily:'monospace' }}>@{p.username}</td>
-                  <td style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
-                    <span style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'10px', background: p.role === 'admin' ? 'rgba(201,168,76,.15)' : 'rgba(255,255,255,.06)', color: p.role === 'admin' ? '#C9A84C' : '#6B7A8D', border:`1px solid ${p.role === 'admin' ? 'rgba(201,168,76,.3)' : 'rgba(255,255,255,.1)'}` }}>
-                      {p.role === 'admin' ? '👑 Admin' : 'Membre'}
-                    </span>
-                  </td>
-                  <td style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
-                    <span style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'10px', background: p.eden_access ? 'rgba(46,204,113,.1)' : 'rgba(231,76,60,.08)', color: p.eden_access ? '#2ecc71' : '#e74c3c', border:`1px solid ${p.eden_access ? 'rgba(46,204,113,.25)' : 'rgba(231,76,60,.2)'}` }}>
-                      {p.eden_access ? '✅ Actif' : '🔒 Inactif'}
-                    </span>
-                  </td>
-                  <td style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
-                    {p.id !== currentUserId ? (
-                      <button onClick={() => toggleAccess(p)} disabled={saving === p.id} style={{ padding:'5px 14px', borderRadius:'6px', fontSize:'12px', fontWeight:500, cursor:'pointer', border:'1px solid', opacity: saving === p.id ? 0.5 : 1, background: p.eden_access ? 'rgba(231,76,60,.1)' : 'rgba(46,204,113,.1)', color: p.eden_access ? '#e74c3c' : '#2ecc71', borderColor: p.eden_access ? 'rgba(231,76,60,.3)' : 'rgba(46,204,113,.3)' }}>
-                        {saving === p.id ? '…' : p.eden_access ? "Retirer l'accès" : "Donner l'accès"}
-                      </button>
-                    ) : (
-                      <span style={{ fontSize:'11px', color:'#3D4E5F' }}>Vous</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
+          <div style={{ background:'#162030', border:'1px solid rgba(201,168,76,.15)', borderRadius:'12px', padding:'16px' }}>
+            <div style={{ fontSize:'13px', fontWeight:600, color:'#E8E8E8', marginBottom:'12px' }}>Ajouter un service DOUKE</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:'10px', marginBottom:'10px' }}>
+              <div>
+                <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'4px' }}>Nom *</div>
+                <input value={newService.nom} onChange={e => setNewService(s => ({...s,nom:e.target.value}))} placeholder="Ex: Audit fiscal" style={inp} />
+              </div>
+              <div>
+                <div style={{ fontSize:'11px', color:'#6B7A8D', marginBottom:'4px' }}>Description</div>
+                <input value={newService.description} onChange={e => setNewService(s => ({...s,description:e.target.value}))} placeholder="Description courte..." style={inp} />
+              </div>
+            </div>
+            <button onClick={addService} disabled={addingService || !newService.nom.trim()} style={{ padding:'8px 18px', borderRadius:'8px', border:'1px solid rgba(201,168,76,.4)', background:'rgba(201,168,76,.1)', color:'#C9A84C', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
+              {addingService?'...':'Ajouter le service'}
+            </button>
+          </div>
         </div>
       )}
     </div>

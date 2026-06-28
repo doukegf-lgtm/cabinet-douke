@@ -60,9 +60,28 @@ export default function ConnectorPage() {
 
   useEffect(() => { load() }, [])
 
+  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [isAdminUser, setIsAdminUser] = useState(false)
+
+  useEffect(() => {
+    const raw = localStorage.getItem('eden_current_user')
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        setCurrentUserId(u.id || '')
+        setIsAdminUser(u.role === 'Super-Admin' || u.role === 'Senior Analyst')
+      } catch {}
+    }
+  }, [])
+
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('pipeline_connector').select('*').order('created_at', { ascending: false })
+    const raw = localStorage.getItem('eden_current_user')
+    const me = raw ? JSON.parse(raw) : null
+    const isAdm = me?.role === 'Super-Admin' || me?.role === 'Senior Analyst'
+    let query = supabase.from('pipeline_connector').select('*').order('created_at', { ascending: false })
+    if (!isAdm && me?.id) query = query.eq('assigned_to', me.id)
+    const { data } = await query
     setItems(data || [])
     setLoading(false)
   }
