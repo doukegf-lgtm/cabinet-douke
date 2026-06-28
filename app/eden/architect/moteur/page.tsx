@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { createBrowserSupabaseClient } from '@/app/supabaseClient'
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -1283,6 +1284,17 @@ export default function MoteurFinancierPage() {
         nb_emplois: state.salaires.reduce((s, r) => s + r.nbre, 0),
       };
       sessionStorage.setItem('architect_financial_data', JSON.stringify(financial));
+      // Persistance Supabase non bloquante
+      const sbPersist = createBrowserSupabaseClient()
+      const ctxRaw = sessionStorage.getItem('architect_context')
+      if (ctxRaw) {
+        try {
+          const ctxParsed = JSON.parse(ctxRaw)
+          if (ctxParsed && ctxParsed.dossierId) {
+            sbPersist.from('dossiers_eden').update({ plan_financier: financial, updated_at: new Date().toISOString() }).eq('id', ctxParsed.dossierId).then(() => {})
+          }
+        } catch {}
+      }
     } catch { /* sessionStorage indisponible */ }
   }, [state]);
 

@@ -96,6 +96,42 @@ export default function CoffrePage() {
     setMsg(null)
   }
 
+  async function continuerDossier(d: Dossier) {
+    // Charge le dossier dans sessionStorage pour le moteur
+    sessionStorage.setItem('architect_context', JSON.stringify({
+      dossierId: d.id,
+      nomProjet: d.nom_projet,
+      modele: d.modele,
+      zone: d.zone,
+      promoteur: d.promoteur,
+      montant: d.montant,
+      typeFinancement: d.type_financement,
+    }))
+    if (d.plan_financier) {
+      sessionStorage.setItem('architect_financial_data', JSON.stringify(d.plan_financier))
+    }
+    window.location.href = '/eden/architect/moteur'
+  }
+
+  async function dupliquerDossier(d: Dossier) {
+    const supabase = createBrowserSupabaseClient()
+    const { data } = await supabase.from('dossiers_eden').insert({
+      nom_projet: d.nom_projet + ' (copie)',
+      promoteur: d.promoteur,
+      zone: d.zone,
+      modele: d.modele,
+      secteur: d.secteur,
+      juridique: d.juridique,
+      montant: d.montant,
+      type_financement: d.type_financement,
+      objet: d.objet,
+      emplois: d.emplois,
+      partenaire: d.partenaire,
+      statut: 'brouillon'
+    }).select().single()
+    if (data) { await load() }
+  }
+
   async function sauvegarder() {
     if (!selected) return
     setSaving(true)
@@ -269,6 +305,12 @@ export default function CoffrePage() {
                   style={{ padding: '6px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#E8E8E8', fontSize: '12px', cursor: 'pointer' }}>
                   {STATUTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                <button onClick={() => continuerDossier(selected)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(52,152,219,.4)', background: 'rgba(52,152,219,.1)', color: '#3498db', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  Continuer dans le moteur
+                </button>
+                <button onClick={() => dupliquerDossier(selected)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(201,168,76,.3)', background: 'rgba(201,168,76,.06)', color: '#C9A84C', fontSize: '12px', cursor: 'pointer' }}>
+                  Dupliquer
+                </button>
                 <button onClick={sauvegarder} disabled={saving}
                   style={{ padding: '6px 14px', background: 'rgba(201,168,76,.15)', border: '1px solid rgba(201,168,76,.3)', borderRadius: '8px', color: '#C9A84C', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                   {saving ? '...' : '💾 Sauvegarder'}
