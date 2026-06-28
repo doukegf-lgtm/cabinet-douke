@@ -215,6 +215,7 @@ export default function PartenairesPage() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button style={S.btn(true)} onClick={() => { setForm(selected); setEditing(true) }}>✏️ Modifier</button>
                 <button style={{ ...S.btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.3)' }} onClick={() => remove(selected.id)}>🗑️ Supprimer</button>
+                <a href={'/eden/connector?partenaire=' + encodeURIComponent(selected.nom) + '&service=' + encodeURIComponent((selected.services || [])[0] || '') + '&zone=' + encodeURIComponent((selected.zones || [])[0] || '') + '&ticket_min=' + (selected.ticket_min || 0)} style={{ ...S.btn(true), textDecoration: 'none', display: 'inline-block', background: 'rgba(46,204,113,.1)', borderColor: 'rgba(46,204,113,.3)', color: '#2ecc71' }}>🔗 Initier mise en relation</a>
               </div>
             </div>
           )}

@@ -38,6 +38,23 @@ export default function ConnectorPage() {
   const [emailGen, setEmailGen] = useState('')
   const [genLoading, setGenLoading] = useState(false)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [dossiers, setDossiers] = useState<{id:string,nom_projet:string}[]>([])
+
+  useEffect(() => {
+    supabase.from('dossiers_eden').select('id, nom_projet').order('created_at', { ascending: false }).then(({ data }) => setDossiers(data || []))
+    // Pré-remplir depuis SCOUT via URL params
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search)
+      const p = sp.get('partenaire')
+      const s = sp.get('service')
+      const z = sp.get('zone')
+      const t = sp.get('ticket_min')
+      if (p) {
+        setForm(f => ({ ...f, partenaire: p, service: s || '', zone: z || '', montant: t ? parseInt(t) : 0, statut: 'prospect' }))
+        setEditing(true)
+      }
+    }
+  }, [])
 
   const supabase = createBrowserSupabaseClient()
 
@@ -187,6 +204,13 @@ Structure : Objet + Corps (3 paragraphes max) + Formule de politesse Cabinet DOU
                 </select>
               </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#6B7A8D', marginBottom: '4px' }}>Dossier ARCHITECT lié</div>
+                  <select value={form.dossier_id || ''} onChange={e => setForm(f => ({...f, dossier_id: e.target.value || null}))} style={S.input}>
+                    <option value=''>-- Aucun dossier lié --</option>
+                    {dossiers.map(d => <option key={d.id} value={d.id}>{d.nom_projet}</option>)}
+                  </select>
+                </div>
                 <button style={S.btn(true)} onClick={save} disabled={saving}>{saving ? '…' : '💾 Sauvegarder'}</button>
                 <button style={S.btn()} onClick={() => { setEditing(false); setForm({ statut: 'prospect' }) }}>Annuler</button>
               </div>

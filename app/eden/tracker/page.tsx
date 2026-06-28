@@ -57,6 +57,8 @@ export default function TrackerPage() {
   const totalApprouve = approuves.reduce((s, d) => s + (d.montant || 0), 0)
   const tauxConversion = dossiers.length ? Math.round((approuves.length / dossiers.length) * 100) : 0
   const actifsPipeline = pipeline.filter(p => p.statut === 'actif').length
+  const montantPipelineActif = pipeline.filter(p => p.statut === 'actif').reduce((s, p) => s + (p.montant || 0), 0)
+  const dossiersFinancés = dossiers.filter(d => d.statut === 'financé').length
 
   function fmtM(n: number) {
     if (n >= 1000000000) return (n / 1000000000).toFixed(1) + ' Mrd'
@@ -112,6 +114,8 @@ export default function TrackerPage() {
                   ['📁', 'Dossiers total', dossiers.length, ''],
                   ['✅', 'Dossiers approuvés', approuves.length, ''],
                   ['📈', 'Taux de conversion', tauxConversion + '%', ''],
+                  ['🔗', 'Pipeline actif (montant)', fmtM(montantPipelineActif) + ' FCFA', ''],
+                  ['🏅', 'Dossiers financés', dossiersFinancés, ''],
                   ['💰', 'Volume total', fmtM(totalMontant) + ' FCFA', ''],
                   ['🏆', 'Volume approuvé', fmtM(totalApprouve) + ' FCFA', ''],
                   ['🔗', 'Pipeline actifs', actifsPipeline, ''],
@@ -176,6 +180,7 @@ export default function TrackerPage() {
                       <td style={{ padding: '10px 12px', color: '#A8B4C0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>{d.zone}</td>
                       <td style={{ padding: '10px 12px', color: '#A8B4C0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>{d.secteur}</td>
                       <td style={{ padding: '10px 12px', color: '#C9A84C', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,.04)' }}>{fmtM(d.montant)} FCFA</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,.04)' }}><a href='/eden/architect/coffre' style={{ color: '#6B7A8D', fontSize: '11px', textDecoration: 'none' }}>Voir →</a></td>
                       <td style={{ padding: '10px 12px', color: '#A8B4C0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>{d.type_financement}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
                         <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: `${STATUTS_COLOR[d.statut]}20`, color: STATUTS_COLOR[d.statut] || '#6B7A8D', border: `1px solid ${STATUTS_COLOR[d.statut]}40` }}>{d.statut}</span>
@@ -207,6 +212,7 @@ export default function TrackerPage() {
                       <td style={{ padding: '10px 12px', color: '#A8B4C0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>{p.partenaire}</td>
                       <td style={{ padding: '10px 12px', color: '#A8B4C0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>{p.zone}</td>
                       <td style={{ padding: '10px 12px', color: '#C9A84C', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,.04)' }}>{fmtM(p.montant)} FCFA</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,.04)' }}><a href='/eden/connector' style={{ color: '#6B7A8D', fontSize: '11px', textDecoration: 'none' }}>Voir →</a></td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
                         <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: `${STATUTS_COLOR[p.statut]}20`, color: STATUTS_COLOR[p.statut] || '#6B7A8D', border: `1px solid ${STATUTS_COLOR[p.statut]}40` }}>{p.statut}</span>
                       </td>
