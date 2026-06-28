@@ -859,6 +859,32 @@ export default function MoteurSocialPage() {
   const totalFonct = state.charges_fonctionnement.reduce((s, c) => s + c.montant_mensuel * c.mois, 0);
   const sousTotal = totalActivites + totalPersonnel + totalFonct;
   const budgetTotal = sousTotal + sousTotal * state.reserve_imprevus_pct / 100;
+  const totalFinancementSync = state.sources_financement.reduce((s, f) => s + f.montant, 0);
+  const totalFondsPropresSync = state.sources_financement.filter(f => f.type === "fonds_propres").reduce((s, f) => s + f.montant, 0);
+  const totalExterneSync = state.sources_financement.filter(f => f.type === "subvention" || f.type === "pret").reduce((s, f) => s + f.montant, 0);
+  const nbPersonnelSync = state.personnel.reduce((s, p) => s + p.nbre, 0);
+
+  useEffect(() => {
+    try {
+      const financial = {
+        ca_an1: Math.round(budgetTotal),
+        ca_an2: Math.round(budgetTotal),
+        ca_an3: Math.round(budgetTotal),
+        taux_marge_brute: 0,
+        charges_fixes_annuelles: Math.round(totalFonct),
+        amortissements_annuels: 0,
+        total_immobilisations: Math.round(totalActivites),
+        bfr: 0,
+        total_projet: Math.round(budgetTotal),
+        apport_personnel: Math.round(totalFondsPropresSync),
+        emprunt_total: Math.round(totalExterneSync),
+        pct_apport: totalFinancementSync > 0 ? Math.round(totalFondsPropresSync / totalFinancementSync * 100) : 0,
+        nb_produits: state.activites.filter(a => a.nom).length,
+        nb_emplois: nbPersonnelSync,
+      };
+      sessionStorage.setItem('architect_financial_data', JSON.stringify(financial));
+    } catch { /* sessionStorage indisponible */ }
+  }, [state, budgetTotal, totalActivites, totalFonct, totalFinancementSync, totalFondsPropresSync, totalExterneSync, nbPersonnelSync]);
 
   return (
     <div className="min-h-screen bg-gray-50">
