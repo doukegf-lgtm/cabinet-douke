@@ -1104,7 +1104,6 @@ function ObjectifsView({
           <button onClick={onAddObjective} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2">
             <Plus size={14} /> Nouveau dossier
           </button>
-          </div>
         )}
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
@@ -1246,6 +1245,7 @@ function EquipeView({
           <button onClick={onAddCollaborator} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2">
             <UserPlus size={16} /> Nouveau Collaborateur
           </button>
+          </div>
         )}
       </div>
 
