@@ -564,7 +564,7 @@ function AdminDashboard({
           <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-50 border px-2 py-0.5 rounded">Journal Consolidé</span>
         </div>
         <div className="space-y-2.5">
-          {activities.slice(0, 10).map((act, i) => (
+          {activities.slice(0, 6).map((act, i) => (
             <div key={i} className="text-xs text-slate-700 font-medium p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between hover:bg-slate-50 transition-all">
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
@@ -1269,7 +1269,16 @@ function EquipeView({
                 {juniors.length > 0 && (
                   <div className="border-t border-slate-100">
                     {juniors.map((junior, ji) => {
-                      const jColorClass = junior.performance > 75 ? 'from-emerald-400 to-emerald-500' : junior.performance > 55 ? 'from-blue-500 to-blue-600' : 'from-amber-400 to-amber-500';
+                      const jRealCount = realisations.filter((r) => r.user_id === junior.id).length;
+                      const jObjCount = objectives.filter((o) => o.assigned_to === junior.id).length;
+                      const jObjDone = objectives.filter((o) => o.assigned_to === junior.id && o.progress_percentage >= 100).length;
+                      const jAvgProgress = jObjCount > 0 ? Math.round(objectives.filter((o) => o.assigned_to === junior.id).reduce((s, o) => s + o.progress_percentage, 0) / jObjCount) : 0;
+                      const jPerfScore = Math.min(100, Math.round(
+                        (jAvgProgress * 0.5) +
+                        (jObjCount > 0 ? (jObjDone / jObjCount) * 30 : 0) +
+                        Math.min(20, jRealCount * 2)
+                      ));
+                      const jColorClass = jPerfScore > 75 ? 'from-emerald-400 to-emerald-500' : jPerfScore > 55 ? 'from-blue-500 to-blue-600' : 'from-amber-400 to-amber-500';
                       return (
                         <div key={junior.id} className={`flex items-center gap-4 p-3.5 pl-8 hover:bg-slate-50 transition-all ${ji < juniors.length - 1 ? 'border-b border-slate-100' : ''}`}>
                           <div className="flex items-center gap-1 text-slate-300 shrink-0"><ChevronRight size={12} /></div>
@@ -1283,7 +1292,7 @@ function EquipeView({
                               <div className="flex-1 max-w-24 bg-slate-200 h-1 rounded-full overflow-hidden">
                                 <div className={`h-full bg-gradient-to-r ${jColorClass}`} style={{ width: `${junior.performance}%` }}></div>
                               </div>
-                              <span className="text-[9px] font-black text-slate-500">{junior.performance}%</span>
+                              <span className="text-[9px] font-black text-slate-500" title={`Score calculé: ${jPerfScore}% (Progression moy: ${jAvgProgress}% · Objectifs complétés: ${jObjDone}/${jObjCount} · Réalisations: ${jRealCount}`}>{jPerfScore}%</span>
                               <span className="text-[9px] text-slate-400 font-bold">{objectives.filter((o) => o.assigned_to === junior.id).length} dossiers</span>
                             </div>
                           </div>
@@ -1621,6 +1630,16 @@ function CollaboratorModal({
     profile: 'Junior', organization_id: 'd2222222-2222-2222-2222-222222222222',
     senior_id: null, email: '', performance: 50,
   };
+  const [telephone, setTelephone] = React.useState('');
+  const [createAccount, setCreateAccount] = React.useState(false);
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  React.useEffect(() => {
+    setTelephone('');
+    setCreateAccount(false);
+    setUsername(existing ? (existing.email?.split('@')[0] || '') : '');
+    setPassword('');
+  }, [existing, isOpen]);
   const [form, setForm] = useState<Collaborator>(defaultForm);
   useEffect(() => { setForm(existing ? { ...existing } : { ...defaultForm, id: '' }); }, [existing, isOpen]);
   if (!isOpen) return null;
@@ -1674,6 +1693,31 @@ function CollaboratorModal({
             <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="prenom@cabinet-douke.com"
               className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
           </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Téléphone</label>
+            <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} placeholder="+229 97 00 00 00"
+              className="w-full border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <input type="checkbox" checked={createAccount} onChange={e => setCreateAccount(e.target.checked)} className="accent-blue-600 w-4 h-4" />
+              <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider">Créer un compte DOUKE (accès plateforme)</span>
+            </label>
+            {createAccount && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Identifiant</label>
+                  <input value={username} onChange={e => setUsername(e.target.value)} placeholder="prenom.nom"
+                    className="w-full border border-blue-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-blue-500 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mot de passe initial</label>
+                  <input type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="Temp@2026"
+                    className="w-full border border-blue-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-blue-500 bg-white" />
+                </div>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Profil / Niveau d'accès</label>
@@ -1716,7 +1760,7 @@ function CollaboratorModal({
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 p-3 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all">Annuler</button>
-          <button onClick={() => { if (!form.first_name || !form.last_name || !form.role) return; onSave({ ...form, id: existing?.id || createRecordId() }); onClose(); }}
+          <button onClick={() => { if (!form.first_name || !form.last_name || !form.role) return; onSave({ ...form, id: existing?.id || createRecordId(), _telephone: telephone, _createAccount: createAccount, _username: username, _password: password } as Collaborator & {_telephone:string,_createAccount:boolean,_username:string,_password:string}); onClose(); }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 p-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 justify-center">
             <Save size={14} />{existing ? 'Enregistrer les modifications' : 'Créer le collaborateur'}
           </button>
@@ -2285,6 +2329,29 @@ export default function FullyLoadedPremiumDashboard() {
     }
   };
 
+  // Déconnexion automatique après 30 minutes d'inactivité
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        localStorage.removeItem('eden_current_user');
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        setCurrentView('Tableau de bord');
+        alert('Session expiree apres 30 minutes d\'inactivite. Veuillez vous reconnecter.');
+      }, 30 * 60 * 1000);
+    };
+    const events = ['mousemove','keydown','click','scroll','touchstart'];
+    events.forEach(e => window.addEventListener(e, reset));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [isAuthenticated]);
+
   const calculateMetrics = (targetObjectives: Objective[]) => {
     const total = targetObjectives.length;
     const avg = total > 0 ? Math.round(targetObjectives.reduce((a, o) => a + o.progress_percentage, 0) / total) : 0;
@@ -2441,7 +2508,7 @@ export default function FullyLoadedPremiumDashboard() {
     } catch (err) { console.error('Erreur delete objective:', err); }
   };
 
-  const handleSaveCollaborator = async (formData: Collaborator) => {
+  const handleSaveCollaborator = async (formData: Collaborator & {_telephone?:string,_createAccount?:boolean,_username?:string,_password?:string}) => {
     const isEdit = collaborators.find((c) => c.id === formData.id);
     try {
       const payload = {
@@ -2457,6 +2524,24 @@ export default function FullyLoadedPremiumDashboard() {
         setCollaborators((prev) => prev.some((c) => c.id === (inserted as Collaborator).id)
           ? prev.map((c) => c.id === (inserted as Collaborator).id ? inserted as Collaborator : c)
           : [inserted as Collaborator, ...prev]);
+        // Créer le compte d'accès si demandé
+        if (formData._createAccount && formData._username && formData._password) {
+          try {
+            const sb = (await import('@/app/supabaseClient')).createBrowserSupabaseClient()
+            await sb.from('auth_accounts').insert({
+              id: (inserted as Collaborator).id,
+              username: formData._username,
+              password_hash: formData._password,
+              name: formData.first_name + ' ' + formData.last_name,
+              role: formData.profile,
+              org_id: formData.organization_id,
+              emoji: formData.avatar_emoji,
+              collaborator_id: (inserted as Collaborator).id,
+              eden_access: false,
+              scout_access: false,
+            })
+          } catch (e) { console.error('Erreur création compte:', e) }
+        }
         await apiRequest('insert', 'activities', {
           user_id: currentUser?.collaborator_id || null,
           description: `${currentUser?.name} a créé le collaborateur ${formData.first_name} ${formData.last_name}`,
