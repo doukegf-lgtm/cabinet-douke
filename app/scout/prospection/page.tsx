@@ -151,10 +151,9 @@ export default function ProspectionPage() {
   }
 
   const isAdmin = session?.role === 'Super-Admin' || session?.role === 'Senior Analyst'
-  const isAdmin = session?.role === 'Super-Admin' || session?.role === 'Senior Analyst'
   const servicesVisibles = filtreStructure === 'tous'
     ? services
-    : services.filter(s => !s.structures || s.structures === filtreStructure || s.structures === 'DOUKE+CONACCE')
+    : services.filter((s: Service) => { const st = s.structures; return !st || st === filtreStructure || st === 'DOUKE+CONACCE' })
   const filtered = prospects.filter(p => {
     if (filtreStatut !== 'tous' && p.statut !== filtreStatut) return false
     if (filtreService !== 'tous' && p.service_douke !== filtreService) return false
