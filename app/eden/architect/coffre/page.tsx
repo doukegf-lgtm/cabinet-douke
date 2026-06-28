@@ -163,6 +163,7 @@ export default function CoffrePage() {
           <p style={{ fontSize: '12px', color: '#6B7A8D', margin: 0 }}>{dossiers.length} dossier{dossiers.length > 1 ? 's' : ''} enregistré{dossiers.length > 1 ? 's' : ''}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => setShowNewModel(true)} style={{ padding: '8px 16px', background: 'rgba(100,180,100,.1)', border: '1px solid rgba(100,180,100,.3)', borderRadius: '8px', color: '#6eb96e', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>+ Nouveau modèle BP</button>
           <a href="/eden/architect" style={{ padding: '8px 16px', background: 'rgba(201,168,76,.1)', border: '1px solid rgba(201,168,76,.3)', borderRadius: '8px', color: '#C9A84C', textDecoration: 'none', fontSize: '12px', fontWeight: 600 }}>+ Nouveau dossier</a>
           <a href="/eden" style={{ padding: '8px 16px', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: '8px', color: '#A8B4C0', textDecoration: 'none', fontSize: '12px' }}>← Accueil EDEN</a>
         </div>
