@@ -21,7 +21,12 @@ interface Prospect {
 }
 
 interface Compte { id: string; name: string; username: string }
-interface Service { id: string; nom: string; actif: boolean }
+interface Service { id: string; nom: string; description: string; actif: boolean; structures?: string }
+
+const STRUCTURES = [
+  { id: 'DOUKE', label: 'Cabinet DOUKE', org_id: 'd2222222-2222-2222-2222-222222222222', color: '#3B82F6' },
+  { id: 'CONACCE', label: 'CONACCE', org_id: 'c1111111-1111-1111-1111-111111111111', color: '#2ecc71' },
+]
 
 const STATUTS = ['nouveau','affecte','contacte','qualifie','perdu']
 const STATUT_COLOR: Record<string,string> = { nouveau:'#6B7A8D',affecte:'#C9A84C',contacte:'#3B82F6',qualifie:'#2ecc71',perdu:'#e74c3c' }
@@ -40,12 +45,27 @@ export default function ProspectionPage() {
   const [showGen, setShowGen] = useState(false)
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [filtreService, setFiltreService] = useState('tous')
-  const [session, setSession] = useState<{id:string,role:string}|null>(null)
+  const [filtreStructure, setFiltreStructure] = useState('tous')
+  const [session, setSession] = useState<{id:string,role:string,org_id?:string}|null>(null)
+  const [showServices, setShowServices] = useState(false)
+  const [serviceForm, setServiceForm] = useState<Partial<Service>>({ nom:'', description:'', actif:true, structures:'DOUKE' })
+  const [editingService, setEditingService] = useState<Service|null>(null)
+  const [savingService, setSavingService] = useState(false)
   const sb = createBrowserSupabaseClient()
 
   useEffect(() => {
     const raw = localStorage.getItem('eden_current_user')
-    if (raw) { try { setSession(JSON.parse(raw)) } catch {} }
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        setSession(u)
+        // Filtre structure auto selon profil
+        if (u.orgId && u.orgId !== 'Tous') {
+          const struct = STRUCTURES.find(s => s.org_id === u.orgId)
+          if (struct) setFiltreStructure(struct.id)
+        }
+      } catch {}
+    }
     load()
   }, [])
 
@@ -60,6 +80,26 @@ export default function ProspectionPage() {
     setComptes(c.data || [])
     setServices(s.data || [])
     setLoading(false)
+  }
+
+  async function saveService() {
+    if (!serviceForm.nom?.trim()) return
+    setSavingService(true)
+    if (editingService) {
+      await sb.from('scout_services_douke').update({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif, structures: serviceForm.structures }).eq('id', editingService.id)
+    } else {
+      await sb.from('scout_services_douke').insert({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif !== false, structures: serviceForm.structures || 'DOUKE' })
+    }
+    setSavingService(false)
+    setEditingService(null)
+    setServiceForm({ nom:'', description:'', actif:true, structures:'DOUKE' })
+    await load()
+  }
+
+  async function deleteService(id: string) {
+    if (!confirm('Supprimer ce service ?')) return
+    await sb.from('scout_services_douke').delete().eq('id', id)
+    await load()
   }
 
   async function genererProspects() {
@@ -111,6 +151,10 @@ export default function ProspectionPage() {
   }
 
   const isAdmin = session?.role === 'Super-Admin' || session?.role === 'Senior Analyst'
+  const isAdmin = session?.role === 'Super-Admin' || session?.role === 'Senior Analyst'
+  const servicesVisibles = filtreStructure === 'tous'
+    ? services
+    : services.filter(s => !s.structures || s.structures === filtreStructure || s.structures === 'DOUKE+CONACCE')
   const filtered = prospects.filter(p => {
     if (filtreStatut !== 'tous' && p.statut !== filtreStatut) return false
     if (filtreService !== 'tous' && p.service_douke !== filtreService) return false
@@ -129,7 +173,24 @@ export default function ProspectionPage() {
       <div>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
           <h2 style={{ color:'#E8E8E8', fontSize:'16px', fontWeight:700, margin:0 }}>🔍 Prospection qualifiée</h2>
-          <div style={{ display:'flex', gap:'8px' }}>
+          <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+            {/* Filtre structure — Admin voit tout avec sélecteur */}
+            {(session?.role === 'Super-Admin' || !session?.orgId || session?.orgId === 'Tous') ? (
+              <div style={{ display:'flex', gap:'4px' }}>
+                {['tous',...STRUCTURES.map(s=>s.id)].map(sid => {
+                  const st = STRUCTURES.find(s=>s.id===sid)
+                  return (
+                    <button key={sid} onClick={() => setFiltreStructure(sid)}
+                      style={{ ...S.btn(filtreStructure===sid), fontSize:'11px', padding:'4px 10px',
+                        borderColor: st && filtreStructure===sid ? `${st.color}66` : undefined,
+                        color: st && filtreStructure===sid ? st.color : undefined }}>
+                      {sid === 'tous' ? 'Toutes structures' : st?.label}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+            {isAdmin && <button style={{ ...S.btn(), fontSize:'11px' }} onClick={() => setShowServices(!showServices)}>⚙️ Gérer services</button>}
             <button style={S.btn()} onClick={() => setShowGen(!showGen)}>🤖 Générer prospects IA</button>
             <button style={S.btn(true)} onClick={() => { setForm({ statut:'nouveau', scoring:50 }); setEditing(true); setSelected(null) }}>+ Ajouter</button>
           </div>
@@ -151,7 +212,7 @@ export default function ProspectionPage() {
                 <label style={S.label}>Service DOUKE *</label>
                 <select value={genForm.service_douke} onChange={e => setGenForm(f => ({...f, service_douke:e.target.value}))} style={S.input}>
                   <option value="">-- Sélectionner --</option>
-                  {services.map(s => <option key={s.id} value={s.nom}>{s.nom}</option>)}
+                  {servicesVisibles.map(s => <option key={s.id} value={s.nom}>{s.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -168,11 +229,60 @@ export default function ProspectionPage() {
           </div>
         )}
 
+        {showServices && isAdmin && (
+          <div style={{ background:'#0F1923', border:'1px solid rgba(201,168,76,.2)', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#C9A84C', marginBottom:'12px' }}>⚙️ Services DOUKE — Gestion</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'12px', maxHeight:'200px', overflowY:'auto' }}>
+              {services.map(svc => (
+                <div key={svc.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,.03)', borderRadius:'8px', padding:'8px 12px' }}>
+                  <div>
+                    <div style={{ fontSize:'12px', fontWeight:600, color: svc.actif ? '#E8E8E8' : '#6B7A8D' }}>{svc.nom}</div>
+                    <div style={{ fontSize:'10px', color:'#6B7A8D' }}>{svc.structures || 'DOUKE'} · {svc.description?.slice(0,60)}…</div>
+                  </div>
+                  <div style={{ display:'flex', gap:'6px' }}>
+                    <button onClick={() => { setEditingService(svc); setServiceForm(svc) }} style={{ ...S.btn(true), padding:'4px 8px', fontSize:'11px' }}>✏️</button>
+                    <button onClick={() => deleteService(svc.id)} style={{ ...S.btn(), padding:'4px 8px', fontSize:'11px', color:'#e74c3c', borderColor:'rgba(231,76,60,.3)' }}>🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Formulaire ajout/édition service */}
+            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:'8px', padding:'12px' }}>
+              <div style={{ fontSize:'11px', fontWeight:600, color:'#C9A84C', marginBottom:'8px' }}>{editingService ? 'Modifier le service' : 'Ajouter un service'}</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px' }}>
+                <div>
+                  <label style={S.label}>Nom du service *</label>
+                  <input value={serviceForm.nom||''} onChange={e => setServiceForm(f => ({...f, nom:e.target.value}))} style={S.input} placeholder="Ex : Conseil juridique OHADA" />
+                </div>
+                <div>
+                  <label style={S.label}>Structure</label>
+                  <select value={serviceForm.structures||'DOUKE'} onChange={e => setServiceForm(f => ({...f, structures:e.target.value}))} style={S.input}>
+                    <option value="DOUKE">Cabinet DOUKE</option>
+                    <option value="CONACCE">CONACCE</option>
+                    <option value="DOUKE+CONACCE">Les deux</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom:'8px' }}>
+                <label style={S.label}>Description</label>
+                <input value={serviceForm.description||''} onChange={e => setServiceForm(f => ({...f, description:e.target.value}))} style={S.input} placeholder="Description courte du service" />
+              </div>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', fontSize:'12px', color:'#A8B4C0' }}>
+                  <input type="checkbox" checked={serviceForm.actif !== false} onChange={e => setServiceForm(f => ({...f, actif:e.target.checked}))} />
+                  Actif
+                </label>
+                <button style={S.btn(true)} onClick={saveService} disabled={savingService || !serviceForm.nom?.trim()}>{savingService ? '…' : editingService ? '💾 Modifier' : '➕ Ajouter'}</button>
+                {editingService && <button style={S.btn()} onClick={() => { setEditingService(null); setServiceForm({ nom:'', description:'', actif:true, structures:'DOUKE' }) }}>Annuler</button>}
+              </div>
+            </div>
+          </div>
+        )}
         <div style={{ display:'flex', gap:'6px', marginBottom:'8px', flexWrap:'wrap' }}>
           {['tous',...STATUTS].map(s => <button key={s} onClick={() => setFiltreStatut(s)} style={{ ...S.btn(filtreStatut===s), fontSize:'11px', padding:'4px 10px' }}>{s}</button>)}
         </div>
         <div style={{ display:'flex', gap:'6px', marginBottom:'12px', flexWrap:'wrap' }}>
-          {['tous',...services.map(s => s.nom)].map(s => <button key={s} onClick={() => setFiltreService(s)} style={{ ...S.btn(filtreService===s), fontSize:'11px', padding:'4px 10px' }}>{s}</button>)}
+          {['tous',...servicesVisibles.map(s => s.nom)].map(s => <button key={s} onClick={() => setFiltreService(s)} style={{ ...S.btn(filtreService===s), fontSize:'11px', padding:'4px 10px' }}>{s}</button>)}
         </div>
 
         {loading ? <div style={{ color:'#6B7A8D', fontSize:'13px' }}>Chargement…</div> : filtered.length === 0 ? (
@@ -251,7 +361,7 @@ export default function ProspectionPage() {
               <label style={S.label}>Service DOUKE</label>
               <select value={form.service_douke||''} onChange={e => setForm(f => ({...f,service_douke:e.target.value}))} style={S.input}>
                 <option value="">-- Sélectionner --</option>
-                {services.map(s => <option key={s.id} value={s.nom}>{s.nom}</option>)}
+                {servicesVisibles.map(s => <option key={s.id} value={s.nom}>{s.nom}</option>)}
               </select>
             </div>
             <div style={{ marginBottom:'8px' }}>
