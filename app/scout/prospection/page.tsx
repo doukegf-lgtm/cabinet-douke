@@ -113,18 +113,17 @@ export default function ProspectionPage() {
     if (!genForm.secteur || !genForm.service_douke) return
     setGenerating(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/scout/ia', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({
-          model:'claude-sonnet-4-6',
-          max_tokens: 2000,
           system: `Tu es un expert commercial en Afrique de l'Ouest spécialisé dans l'identification de prospects qualifiés pour un cabinet de conseil (DOUKE). Génère une liste de prospects RÉALISTES et QUALIFIÉS. Réponds UNIQUEMENT en JSON valide: tableau de ${genForm.nb} objets avec les champs: nom (personne contact), structure (entreprise/organisation), contact (titre/poste), email (format valide plausible), telephone (format Bénin/UEMOA), zone, secteur, service_douke, scoring (0-100), source (comment identifier ce prospect), notes (pourquoi ce prospect est qualifié pour le service DOUKE indiqué).`,
-          messages:[{ role:'user', content: `Génère ${genForm.nb} prospects qualifiés pour le service DOUKE "${genForm.service_douke}" dans le secteur "${genForm.secteur}" zone "${genForm.zone || 'Bénin'}". Ces prospects doivent avoir un besoin réel et identifiable pour ce service.` }]
+          prompt: `Génère ${genForm.nb} prospects qualifiés pour le service DOUKE "${genForm.service_douke}" dans le secteur "${genForm.secteur}" zone "${genForm.zone || 'Bénin'}". Ces prospects doivent avoir un besoin réel et identifiable pour ce service.`
         })
       })
       const data = await res.json()
-      const text = data.content?.[0]?.text || '[]'
+      if (!res.ok) { throw new Error(data?.error || 'Erreur generation IA') }
+      const text = data.text || '[]'
       const parsed = JSON.parse(text.replace(/```json|```/g,'').trim())
       const toInsert = parsed.map((p: Record<string,unknown>) => ({ ...p, statut:'nouveau', service_douke: genForm.service_douke }))
       await sb.from('scout_prospects').insert(toInsert)

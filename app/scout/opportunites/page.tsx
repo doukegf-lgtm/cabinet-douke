@@ -49,18 +49,17 @@ export default function OpportunitesPage() {
     if (!sourceTexte.trim()) return
     setAnalysing(true)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/scout/ia', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({
-          model:'claude-sonnet-4-6',
-          max_tokens: 1000,
           system: `Tu es un expert en financement en Afrique de l'Ouest. Analyse le texte fourni et extrais les informations d'une opportunité de financement. Réponds UNIQUEMENT en JSON valide sans markdown avec ces champs: titre, bailleur, type (subvention/don/appel_projets/financement/autre), montant_max (nombre entier FCFA ou 0), deadline (YYYY-MM-DD ou null), secteurs, zone, notes (résumé en 2 phrases).`,
-          messages:[{ role:'user', content: sourceTexte }]
+          prompt: sourceTexte
         })
       })
       const data = await res.json()
-      const text = data.content?.[0]?.text || '{}'
+      if (!res.ok) { throw new Error(data?.error || 'Erreur analyse IA') }
+      const text = data.text || '{}'
       const parsed = JSON.parse(text.replace(/```json|```/g,'').trim())
       setForm(f => ({ ...f, ...parsed, statut:'nouveau', source: sourceTexte.slice(0,200) }))
       setEditing(true)
