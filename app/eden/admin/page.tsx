@@ -80,8 +80,14 @@ export default function EdenAdminPage() {
   async function addService() {
     if (!newService.nom.trim()) return
     setAddingService(true)
-    const { data } = await sb.from('scout_services_douke').insert({ nom: newService.nom.trim(), description: newService.description.trim(), actif: true }).select().single()
-    if (data) setServices(prev => [...prev, data])
+    const { data, error } = await sb.from('scout_services_douke').insert({ nom: newService.nom.trim(), description: newService.description.trim(), actif: true }).select().single()
+    if (error) {
+      setMsg({ text: 'Erreur creation service: ' + error.message, ok: false })
+    } else if (data) {
+      setServices(prev => [...prev, data])
+      setNewService({ nom: '', description: '' })
+      setMsg({ text: 'Service "' + data.nom + '" cree avec succes', ok: true })
+    }
     setNewService({ nom: '', description: '' })
     setAddingService(false)
     setMsg({ text: 'Service ajoute', ok: true })

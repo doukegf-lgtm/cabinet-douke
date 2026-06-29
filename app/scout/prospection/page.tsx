@@ -85,12 +85,19 @@ export default function ProspectionPage() {
   async function saveService() {
     if (!serviceForm.nom?.trim()) return
     setSavingService(true)
+    let error = null
     if (editingService) {
-      await sb.from('scout_services_douke').update({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif, structures: serviceForm.structures }).eq('id', editingService.id)
+      const r = await sb.from('scout_services_douke').update({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif, structures: serviceForm.structures }).eq('id', editingService.id)
+      error = r.error
     } else {
-      await sb.from('scout_services_douke').insert({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif !== false, structures: serviceForm.structures || 'DOUKE' })
+      const r = await sb.from('scout_services_douke').insert({ nom: serviceForm.nom, description: serviceForm.description, actif: serviceForm.actif !== false, structures: serviceForm.structures || 'DOUKE' })
+      error = r.error
     }
     setSavingService(false)
+    if (error) {
+      alert('Erreur lors de l\'enregistrement du service: ' + error.message)
+      return
+    }
     setEditingService(null)
     setServiceForm({ nom:'', description:'', actif:true, structures:'DOUKE' })
     await load()
