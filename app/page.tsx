@@ -637,6 +637,23 @@ function SeniorDashboard({
         ))}
       </div>
 
+      {myJuniors.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100"><h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">Performance equipe</h3></div>
+          <div className="divide-y divide-slate-50">
+            {myJuniors.map(junior => {
+              const jObjs = objectives.filter(o => o.assigned_to === junior.id)
+              const jReals = realisations.filter(r => r.user_id === junior.id)
+              const jDone = jObjs.filter(o => o.progress_percentage >= 100).length
+              const jAvg = jObjs.length > 0 ? Math.round(jObjs.reduce((s,o) => s + o.progress_percentage,0) / jObjs.length) : 0
+              const jValid = jReals.filter(r => r.validated_by).length
+              const jScore = Math.min(100, Math.round((jAvg * 0.4) + (jObjs.length > 0 ? (jDone/jObjs.length)*30 : 0) + (jReals.length > 0 ? (jValid/jReals.length)*20 : 0) + Math.min(10,jReals.length)))
+              const jCol = jScore >= 85 ? 'text-emerald-600' : jScore >= 70 ? 'text-blue-600' : jScore >= 50 ? 'text-amber-600' : 'text-rose-600'
+              return (<div key={junior.id} className="flex items-center justify-between px-6 py-3"><div><div className="text-xs font-black text-slate-800">{junior.first_name} {junior.last_name}</div><div className="text-[10px] text-slate-400">{jObjs.length} obj · {jValid}/{jReals.length} réal. validées</div></div><div className={`text-lg font-black ${jCol}`}>{jScore}%</div></div>)
+            })}
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">Mes Objectifs & Dossiers</h3>
@@ -798,6 +815,14 @@ function JuniorDashboard({
               <p className="text-[11px] text-blue-400 font-bold uppercase tracking-wider mt-0.5">{currentUser.role}</p>
               {mySenior && <p className="text-[10px] text-slate-400 font-bold mt-1">Référent : {mySenior.first_name} {mySenior.last_name}</p>}
             </div>
+          </div>
+          {(() => {
+            const objDone = myObjectives.filter(o => o.progress_percentage >= 100).length
+            const validees = myRealisations.filter(r => r.validated_by).length
+            const score = Math.min(100, Math.round((myAvg * 0.4) + (myObjectives.length > 0 ? (objDone / myObjectives.length) * 30 : 0) + (myRealisations.length > 0 ? (validees / myRealisations.length) * 20 : 0) + Math.min(10, myRealisations.length)))
+            const col = score >= 85 ? '#2ecc71' : score >= 70 ? '#3B82F6' : score >= 50 ? '#C9A84C' : '#e74c3c'
+            return (<div className="text-right"><div style={{fontSize:'11px',color:'#6B7A8D',textTransform:'uppercase',letterSpacing:'0.1em'}}>Score performance</div><div style={{fontSize:'36px',fontWeight:900,color:col,lineHeight:'1'}}>{score}%</div><div style={{fontSize:'9px',color:'#6B7A8D',marginTop:'4px'}}>{objDone}/{myObjectives.length} obj · {validees}/{myRealisations.length} réal. validées</div></div>)
+          })()}
           </div>
           <div className="text-right">
             <p className="text-4xl font-black text-white">{myAvg}%</p>
