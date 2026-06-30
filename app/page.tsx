@@ -823,14 +823,6 @@ function JuniorDashboard({
             const col = score >= 85 ? '#2ecc71' : score >= 70 ? '#3B82F6' : score >= 50 ? '#C9A84C' : '#e74c3c'
             return (<div className="text-right"><div style={{fontSize:'11px',color:'#6B7A8D',textTransform:'uppercase',letterSpacing:'0.1em'}}>Score performance</div><div style={{fontSize:'36px',fontWeight:900,color:col,lineHeight:'1'}}>{score}%</div><div style={{fontSize:'9px',color:'#6B7A8D',marginTop:'4px'}}>{objDone}/{myObjectives.length} obj · {validees}/{myRealisations.length} réal. validées</div></div>)
           })()}
-          </div>
-          <div className="text-right">
-            <p className="text-4xl font-black text-white">{myAvg}%</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mt-1">Avancement global</p>
-            <div className="w-32 bg-white/10 h-2 rounded-full overflow-hidden mt-2 ml-auto">
-              <div className="bg-gradient-to-r from-blue-400 to-emerald-400 h-full transition-all" style={{ width: `${myAvg}%` }}></div>
-            </div>
-          </div>
         </div>
       </div>
 
