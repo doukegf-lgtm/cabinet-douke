@@ -65,7 +65,7 @@ export default function OpportunitesPage() {
       setEditing(true)
       setShowAnalyse(false)
       setSourceTexte('')
-    } catch(e) { alert('Erreur analyse IA') }
+    } catch(e) { alert('Erreur analyse IA: ' + (e instanceof Error ? e.message : JSON.stringify(e))) }
     setAnalysing(false)
   }
 
