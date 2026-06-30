@@ -13,7 +13,7 @@ export default function OffresLayout({ children }: { children: React.ReactNode }
       const u = JSON.parse(raw)
       const sb = createBrowserSupabaseClient()
       sb.from('auth_accounts').select('id,name,role,scout_access').eq('id', u.id).single().then(({ data }) => {
-        if (!data || !data.scout_access) { setStatus('denied'); return }
+        if (!data || (!data.scout_access && data.role !== 'Super-Admin')) { setStatus('denied'); return }
         setSession(data)
         setStatus('ok')
       })

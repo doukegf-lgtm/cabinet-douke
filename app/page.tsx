@@ -119,6 +119,8 @@ type AuthAccount = {
   emoji: string;
   collaborator_id: string;
   color: string;
+  scout_access?: boolean;
+  eden_access?: boolean;
 };
 
 // ============================================================
@@ -248,6 +250,8 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         emoji: data.emoji,
         collaborator_id: data.collaborator_id ?? '',
         color: data.color,
+        scout_access: data.scout_access ?? false,
+        eden_access: data.eden_access ?? false,
       };
       setAttempts(0);
       localStorage.setItem('eden_current_user', JSON.stringify(account));
@@ -2732,7 +2736,8 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
     { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin },
-    { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin },
+    { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
+    { label: 'Offres & Contrats', view: 'OFFRES', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
   ].filter((n) => n.show);
 
   const displayObjectives = (() => {
@@ -2948,6 +2953,16 @@ export default function FullyLoadedPremiumDashboard() {
                       <span style={{ fontSize:'11px', padding:'4px 12px', borderRadius:'20px', background:'rgba(46,204,113,.1)', color:'#2ecc71', border:'1px solid rgba(46,204,113,.3)' }}>🤝 Partenaires UEMOA</span>
                     </div>
                     <a href='/scout' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#3B82F6,#1d4ed8)', borderRadius:'10px', color:'#fff', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir SCOUT →</a>
+                  </div>
+                </div>
+              )}
+              {currentView === 'OFFRES' && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%' }}>
+                  <div style={{ textAlign:'center' }}>
+                    <div style={{ fontSize:'48px', marginBottom:'16px' }}>📄</div>
+                    <div style={{ fontSize:'18px', fontWeight:700, color:'#C9A84C', marginBottom:'8px' }}>Offres & Contrats</div>
+                    <p style={{ fontSize:'13px', color:'#6B7A8D', marginBottom:'24px' }}>Créez et gérez vos offres de services, contrats et calendriers d&apos;exécution</p>
+                    <a href='/offres-contrats' style={{ display:'inline-block', padding:'12px 28px', background:'linear-gradient(135deg,#C9A84C,#8a6d2f)', borderRadius:'10px', color:'#0F1923', fontWeight:700, fontSize:'14px', textDecoration:'none' }}>Ouvrir Offres & Contrats →</a>
                   </div>
                 </div>
               )}

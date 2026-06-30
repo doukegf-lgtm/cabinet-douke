@@ -42,6 +42,7 @@ export default function ScoutLayout({ children }: { children: React.ReactNode })
     { href:'/scout/opportunites', label:'🎯 Opportunités' },
     { href:'/scout/prospection', label:'🔍 Prospection' },
     { href:'/scout/partenaires', label:'🤝 Partenaires' },
+    { href:'/offres-contrats', label:'📄 Offres & Contrats' },
     { href:'/', label:'← App DOUKE' },
   ]
 
