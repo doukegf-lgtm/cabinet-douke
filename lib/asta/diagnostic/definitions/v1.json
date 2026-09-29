@@ -1,0 +1,47 @@
+{
+ "version": "v1",
+ "consent_text": "J'accepte que DOUKE Growth & Funding me recontacte au sujet de mon diagnostic et de ma feuille de route. Je peux demander l'arrêt à tout moment.",
+ "wish_ack": "Merci, c'est noté. Je m'en servirai pour préparer votre feuille de route.",
+ "bands": [{"min":80,"label":"Performant"},{"min":60,"label":"Solide"},{"min":40,"label":"Fragile"},{"min":0,"label":"Critique"}],
+ "modes": {
+  "inquiet": "On va d'abord comprendre ce qui se passe avant de chercher une solution.",
+  "deborde": "Le désordre coûte du temps : chaque heure récupérée se voit vite sur vos résultats.",
+  "ambitieux": "Votre ambition est un atout : voyons ce qui la freine concrètement.",
+  "sceptique": "Lisez à votre rythme, sans engagement : vous restez libre de la suite.",
+  "pret_a_agir": "Vous semblez prêt à agir : voici la prochaine étape la plus utile."
+ },
+ "dimensions": {
+  "organisation": {"label":"Organisation","reco":"Écrivez qui fait quoi pour les 5 tâches essentielles de l'entreprise et désignez un remplaçant pour chacune."},
+  "tresorerie": {"label":"Trésorerie","reco":"Chaque lundi, notez l'argent disponible, ce qui est déjà engagé (loyer, fournisseurs, salaires) et ce qui reste réellement utilisable."},
+  "visibilite": {"label":"Visibilité","reco":"Choisissez deux canaux de prospection et suivez chaque semaine combien de clients viennent de chacun."},
+  "croissance": {"label":"Croissance","reco":"Fixez un objectif de ventes chiffré pour les trois prochains mois et suivez-le chaque semaine."},
+  "pilotage": {"label":"Pilotage","reco":"Mettez en place un suivi simple (cahier ou tableur) de vos revenus et dépenses, mis à jour chaque semaine."}
+ },
+ "questions": [
+  {"key":"q1","block":"probleme","type":"single","prompt":"Aujourd'hui, quel est votre plus grand défi ?","ack":"Merci. C'est un défi que rencontrent beaucoup de dirigeants. J'aimerais comprendre un peu mieux.",
+   "options":[{"value":"tresorerie","label":"Manque de trésorerie"},{"value":"clients","label":"Peu de clients"},{"value":"organisation","label":"Organisation interne"},{"value":"gestion_financiere","label":"Gestion financière"},{"value":"equipe","label":"Équipe"},{"value":"autre","label":"Autre"}]},
+  {"key":"q2","block":"probleme","type":"single","prompt":"Ce problème existe depuis combien de temps ?","ack":"D'accord. Plus un problème dure, plus il finit par coûter cher sans qu'on s'en rende compte.",
+   "options":[{"value":"semaines","label":"Quelques semaines"},{"value":"mois","label":"Quelques mois"},{"value":"plus_un_an","label":"Plus d'un an"}]},
+  {"key":"q3","block":"probleme","type":"single","prompt":"Si rien ne change dans les trois prochains mois, quelle sera la conséquence la plus grave ?","ack":"Merci de votre franchise. C'est précisément ce que nous cherchons à éviter.",
+   "options":[{"value":"perte_clients","label":"Perte de clients"},{"value":"difficultes_paiement","label":"Difficultés de paiement"},{"value":"stress","label":"Stress"},{"value":"ralentissement","label":"Ralentissement"},{"value":"autre","label":"Autre"}]},
+  {"key":"q4","block":"pilotage","type":"single","dimension":"tresorerie","prompt":"Savez-vous combien d'argent votre entreprise peut réellement utiliser aujourd'hui ?","ack":"Merci. C'est ici que commence le sujet de la trésorerie.",
+   "options":[{"value":"precisement","label":"Oui, précisément","points":20},{"value":"approx","label":"À peu près","points":10},{"value":"non","label":"Non","points":0}]},
+  {"key":"q5","block":"pilotage","type":"single","dimension":"pilotage","prompt":"À quelle fréquence suivez-vous vos revenus et vos dépenses ?","ack":"Noté.",
+   "options":[{"value":"semaine","label":"Chaque semaine","points":10},{"value":"mois","label":"Chaque mois","points":7},{"value":"rarement","label":"Rarement","points":3},{"value":"jamais","label":"Jamais","points":0}]},
+  {"key":"q6","block":"pilotage","type":"single","dimension":"pilotage","prompt":"Avez-vous un outil de suivi (cahier, tableur, application) qui vous montre où en est votre activité ?","ack":"Merci. Cela m'aide à situer votre niveau de pilotage.",
+   "options":[{"value":"oui","label":"Oui","points":10},{"value":"partiel","label":"Partiellement","points":5},{"value":"non","label":"Non","points":0}]},
+  {"key":"q7","block":"croissance","type":"multi","dimension":"visibilite","count_points":[0,6,13,20],"prompt":"Comment trouvez-vous aujourd'hui vos clients ? (plusieurs réponses possibles)","ack":"Merci, c'est utile de savoir d'où viennent vos clients.",
+   "options":[{"value":"facebook","label":"Facebook"},{"value":"whatsapp","label":"WhatsApp"},{"value":"recommandation","label":"Recommandation"},{"value":"terrain","label":"Terrain"},{"value":"autre","label":"Autre"}]},
+  {"key":"q8","block":"croissance","type":"single","dimension":"croissance","prompt":"Vos ventes sont-elles régulières ?","ack":"D'accord, je note.",
+   "options":[{"value":"oui","label":"Oui","points":20},{"value":"varient","label":"Elles varient beaucoup","points":10},{"value":"imprevisibles","label":"Elles sont imprévisibles","points":3}]},
+  {"key":"q9","block":"croissance","type":"single","dimension":"organisation","prompt":"Si vous vous absentiez une semaine, votre entreprise fonctionnerait-elle normalement ?","ack":"Merci. Il me reste trois questions rapides sur votre entreprise.",
+   "options":[{"value":"oui","label":"Oui","points":20},{"value":"en_partie","label":"En partie","points":10},{"value":"non","label":"Non","points":0}]},
+  {"key":"q10","block":"profil","type":"single","prompt":"Dans quel pays exerce principalement votre entreprise ?","ack":"Merci.",
+   "options":[{"value":"benin","label":"Bénin"},{"value":"cote_divoire","label":"Côte d'Ivoire"},{"value":"senegal","label":"Sénégal"},{"value":"congo","label":"Congo"},{"value":"autre","label":"Autre"}]},
+  {"key":"q11","block":"profil","type":"single","prompt":"Quel est votre secteur d'activité ?","ack":"Merci.",
+   "options":[{"value":"commerce","label":"Commerce"},{"value":"services","label":"Services"},{"value":"agriculture","label":"Agriculture"},{"value":"industrie","label":"Industrie"},{"value":"btp","label":"BTP"},{"value":"numerique","label":"Numérique"},{"value":"ong","label":"ONG"},{"value":"autre","label":"Autre"}]},
+  {"key":"q12","block":"profil","type":"single","prompt":"Depuis combien de temps votre entreprise existe-t-elle ?","ack":"Merci, j'ai tout ce qu'il me faut.",
+   "options":[{"value":"moins_1","label":"Moins d'un an"},{"value":"1_3","label":"1 à 3 ans"},{"value":"3_5","label":"3 à 5 ans"},{"value":"plus_5","label":"Plus de 5 ans"}]},
+  {"key":"wish","block":"apres","type":"text","optional":true,"afterResult":true,"prompt":"Si je pouvais résoudre une seule chose pour vous avant la fin de l'année, ce serait laquelle ?"}
+ ]
+}

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySession, SESSION_COOKIE } from '@/lib/platform/session'
 
-// Routes API publiques (les futures routes prospects d'ASTA seront ajoutées ici, une par une)
-const PUBLIC_API = ['/api/auth/login', '/api/auth/logout']
+const PUBLIC_API = ['/api/auth/login', '/api/auth/logout', '/api/asta/diagnostic']
 const GATED_PAGES = ['/eden', '/scout', '/offres-contrats']
 const under = (path: string, base: string) => path === base || path.startsWith(base + '/')
 
@@ -10,9 +9,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const isApi = pathname.startsWith('/api/')
 
-  if (isApi && PUBLIC_API.some((p) => under(pathname, p))) return NextResponse.next()
-
-  // Protection CSRF : une mutation doit venir de notre propre origine
+  // Une mutation doit venir de notre propre origine (vaut aussi pour les routes publiques)
   if (isApi && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.headers.get('origin')
     const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
@@ -22,15 +19,14 @@ export async function middleware(req: NextRequest) {
       if (originHost !== host) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
     }
   }
+  if (isApi && PUBLIC_API.some((p) => under(pathname, p))) return NextResponse.next()
 
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value)
   if (isApi) {
     if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     return NextResponse.next()
   }
-  if (GATED_PAGES.some((p) => under(pathname, p)) && !session) {
-    return NextResponse.redirect(new URL('/', req.url))
-  }
+  if (GATED_PAGES.some((p) => under(pathname, p)) && !session) return NextResponse.redirect(new URL('/', req.url))
   return NextResponse.next()
 }
 
