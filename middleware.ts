@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySession, SESSION_COOKIE } from '@/lib/platform/session'
 
-const PUBLIC_API = ['/api/auth/login', '/api/auth/logout', '/api/asta/diagnostic']
+const PUBLIC_API = ['/api/auth/login', '/api/auth/logout', '/api/asta/diagnostic', '/api/asta/cron']
 const GATED_PAGES = ['/eden', '/scout', '/offres-contrats']
 const under = (path: string, base: string) => path === base || path.startsWith(base + '/')
 
