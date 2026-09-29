@@ -2,10 +2,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://utwspojleufrbeylnazn.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'votre_cle_temporaire';
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const createBrowserSupabaseClient = () => createClient(supabaseUrl, supabaseAnonKey);
-export const createServerSupabaseClient = () => createClient(supabaseUrl, supabaseServiceRoleKey);
+export const createServerSupabaseClient = () => {
+  if (!supabaseServiceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY manquante côté serveur');
+  return createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+};
 
 export const TABLES = [
   'auth_accounts',
@@ -43,7 +46,8 @@ export const dashboardRead = async (client: SupabaseClient) => {
   ]);
 
   return {
-    auth_accounts: authAccounts.data ?? [],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    auth_accounts: (authAccounts.data ?? []).map(({ password_hash, ...rest }: Record<string, unknown>) => rest),
     collaborators: collaborators.data ?? [],
     objectives: objectives.data ?? [],
     activities: activities.data ?? [],
