@@ -1,38 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient, dashboardRead, dashboardWrite, WritePayload } from '@/app/supabaseClient';
+import { NextRequest, NextResponse } from 'next/server'
+import bcrypt from 'bcryptjs'
+import { createServerSupabaseClient, dashboardRead, dashboardWrite, WritePayload } from '@/app/supabaseClient'
+import { requireUser, requireAdmin } from '@/lib/platform/auth'
 
-// ✅ GET — déjà fonctionnel
+export const runtime = 'nodejs'
+
 export async function GET() {
+  const a = await requireUser(); if (!a.ok) return a.response
   try {
-    const client = createServerSupabaseClient();
-    const data = await dashboardRead(client);
-    return NextResponse.json(data);
+    const data = await dashboardRead(createServerSupabaseClient())
+    return NextResponse.json(data)
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : JSON.stringify(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : JSON.stringify(err) }, { status: 500 })
   }
 }
 
-// ✅ POST — manquait complètement
 export async function POST(req: NextRequest) {
+  const a = await requireUser(); if (!a.ok) return a.response
   try {
-    const body = await req.json();
-    const { action, table, data, id } = body as {
-      action: string;
-      table: string;
-      data?: WritePayload;
-      id?: string;
-    };
+    const body = await req.json()
+    const { action, table, id } = body as { action: string; table: string; id?: string }
+    let data = body.data as WritePayload | undefined
+    if (!action || !table) return NextResponse.json({ error: 'action et table sont requis' }, { status: 400 })
 
-    if (!action || !table) {
-      return NextResponse.json({ error: 'action et table sont requis' }, { status: 400 });
+    if (table === 'auth_accounts') {
+      const adm = await requireAdmin(); if (!adm.ok) return adm.response
+      if (data && typeof data.password_hash === 'string' && !data.password_hash.startsWith('$2')) {
+        data = { ...data, password_hash: await bcrypt.hash(data.password_hash, 10) }
+      }
     }
 
-    const client = createServerSupabaseClient();
-    const result = await dashboardWrite(client, action, table, data, id);
-    return NextResponse.json({ data: result });
+    const result = await dashboardWrite(createServerSupabaseClient(), action, table, data, id)
+    if (table === 'auth_accounts' && result && typeof result === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password_hash, ...safe } = result as Record<string, unknown>
+      return NextResponse.json({ data: safe })
+    }
+    return NextResponse.json({ data: result })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : JSON.stringify(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : JSON.stringify(err) }, { status: 500 })
   }
 }

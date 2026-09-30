@@ -217,12 +217,10 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
     setLoading(true);
     setError('');
     try {
-      const { data, error } = await supabase
-        .from('auth_accounts')
-        .select('*')
-        .eq('username', username.trim().toLowerCase())
-        .eq('password_hash', password)
-        .single();
+      const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+      const json = await res.json().catch(() => ({} as { data?: Record<string, any>; error?: string }));
+      const data = res.ok ? json.data : null;
+      const error = res.ok ? null : { message: json.error || 'Erreur de connexion' };
       if (error || !data) {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
@@ -243,7 +241,7 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
       const account: AuthAccount = {
         id: data.id,
         username: data.username,
-        password: data.password_hash,
+        password: '',
         name: data.name,
         role: data.role,
         orgId: resolveOrgId(data.org_id, data.role),
@@ -2408,6 +2406,18 @@ export default function FullyLoadedPremiumDashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    // Session serveur absente ou expirée : on oublie l'ancienne session du navigateur
+    if (!localStorage.getItem('eden_current_user')) return
+    fetch('/api/auth/me', { cache: 'no-store' }).then((r) => {
+      if (r.status === 401) {
+        localStorage.removeItem('eden_current_user')
+        setIsAuthenticated(false)
+        setCurrentUser(null)
+      }
+    }).catch(() => {})
+  }, [])
+
   const handleLogin = (account: AuthAccount) => {
     setCurrentUser(account);
     setIsAuthenticated(true);
@@ -2416,7 +2426,7 @@ export default function FullyLoadedPremiumDashboard() {
 
   const handleLogout = () => {
     if (window.confirm('Confirmer la déconnexion sécurisée ?')) {
-      localStorage.removeItem('eden_current_user');
+      localStorage.removeItem('eden_current_user'); fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       setIsAuthenticated(false);
       setCurrentUser(null);
       setCurrentView('Tableau de bord');
@@ -2430,7 +2440,7 @@ export default function FullyLoadedPremiumDashboard() {
     const reset = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        localStorage.removeItem('eden_current_user');
+        localStorage.removeItem('eden_current_user'); fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
         setIsAuthenticated(false);
         setCurrentUser(null);
         setCurrentView('Tableau de bord');
@@ -2624,19 +2634,8 @@ export default function FullyLoadedPremiumDashboard() {
         // Créer le compte d'accès si demandé
         if (formData._createAccount && formData._username && formData._password) {
           try {
-            const sb = (await import('@/app/supabaseClient')).createBrowserSupabaseClient()
-            await sb.from('auth_accounts').insert({
-              id: (inserted as Collaborator).id,
-              username: formData._username,
-              password_hash: formData._password,
-              name: formData.first_name + ' ' + formData.last_name,
-              role: formData.profile,
-              org_id: formData.organization_id,
-              emoji: formData.avatar_emoji,
-              collaborator_id: (inserted as Collaborator).id,
-              eden_access: false,
-              scout_access: false,
-            })
+            const accRes = await fetch('/api/auth/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: (inserted as Collaborator).id, username: formData._username, password: formData._password, name: formData.first_name + ' ' + formData.last_name, role: formData.profile, org_id: formData.organization_id, emoji: formData.avatar_emoji, collaborator_id: (inserted as Collaborator).id }) })
+            if (!accRes.ok) throw new Error(((await accRes.json().catch(() => ({}))) as { error?: string }).error || 'Création du compte refusée')
           } catch (e) { console.error('Erreur création compte:', e) }
         }
         await apiRequest('insert', 'activities', {
