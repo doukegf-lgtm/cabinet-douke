@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { posterSvg } from '@/lib/asta/ops/content'
+import ActionEditor, { ActionVisual } from '@/components/asta/ActionEditor'
 
 type Row = Record<string, any>
 const GOLD = '#C9A84C'
@@ -21,6 +22,11 @@ const reach = (contact: string | null, text: string) => !contact ? null
   : `https://wa.me/${contact.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`
 
 function poster(a: Row, camp: string) {
+  if (typeof a.content?.image === 'string' && a.content.image) {
+    const m = /^data:image\/(jpeg|png|webp);/.exec(a.content.image)
+    const l = document.createElement('a'); l.download = `${String(a.slot_key ?? 'visuel')}.${m ? (m[1] === 'jpeg' ? 'jpg' : m[1]) : 'jpg'}`; l.href = a.content.image; l.click()
+    return
+  }
   const c = a.content ?? {}
   const svg = posterSvg({ headline: String(c.headline ?? ''), sub: String(c.sub ?? ''), cta: String(c.cta ?? ''), footer: camp })
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
@@ -90,6 +96,7 @@ export default function AstaPage() {
       <div style={{ color: GOLD, fontWeight: 800, letterSpacing: 2 }}>ASTA · DOUKE</div>
       <div style={{ display: 'flex', gap: 14, fontSize: 13 }}>
         <a href="/" style={{ color: GOLD }}>{'← Menu principal'}</a>
+        <a href="/diagnostic" style={{ color: '#A8B4C0' }}>Diagnostic</a>
         <a href="/asta/parler" style={{ color: '#A8B4C0' }}>Parler à ASTA</a>
         <a href="/conversation" style={{ color: '#A8B4C0' }}>Conversation publique</a>
       </div>
@@ -143,15 +150,17 @@ export default function AstaPage() {
         return (
           <div key={a.id} style={box}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><b>{a.title}</b><span style={{ color: GOLD, fontSize: 12 }}>{AS[a.status]}{a.scheduled_at ? ` · prévue ${new Date(a.scheduled_at).toLocaleDateString('fr-FR')}` : ''}</span></div>
+            {a.kind === 'publication' && <ActionVisual a={a} camp={c.name} />}
             <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, background: 'rgba(255,255,255,.05)', padding: 10, borderRadius: 8, margin: '8px 0' }}>{draft}</pre>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {a.status === 'proposed' && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/actions/' + a.id, { op: 'approve' })}>Valider</button>}
               {a.status !== 'proposed' && a.status !== 'cancelled' && <button style={btn()} onClick={() => navigator.clipboard.writeText(draft)}>Copier</button>}
               {a.status === 'approved' && link && <a style={btn(true)} href={link} target="_blank" rel="noreferrer">{String(a.content?.contact ?? '').includes('@') ? 'Ouvrir dans la messagerie' : 'Ouvrir dans WhatsApp'}</a>}
-              {a.kind === 'publication' && a.status !== 'cancelled' && <button style={btn()} onClick={() => poster(a, c.name)}>Télécharger l&apos;affiche</button>}
+              {a.kind === 'publication' && a.status !== 'cancelled' && <button style={btn()} onClick={() => poster(a, c.name)}>{a.content?.image ? 'Télécharger mon visuel' : "Télécharger l'affiche"}</button>}
               {a.status === 'approved' && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/actions/' + a.id, { op: 'done' })}>Marquer comme faite</button>}
               {(a.status === 'approved' || a.status === 'done') && <button style={btn()} onClick={() => results(a)}>Saisir les résultats</button>}
               {(a.status === 'proposed' || a.status === 'approved') && <button style={btn()} disabled={busy} onClick={() => act('/api/asta/admin/actions/' + a.id, { op: 'cancel' })}>Annuler</button>}
+              {(a.status === 'proposed' || a.status === 'approved') && <ActionEditor a={a} camp={c.name} busy={busy} save={(p) => act('/api/asta/admin/actions/' + a.id, { op: 'edit', ...p })} />}
             </div>
           </div>
         )
