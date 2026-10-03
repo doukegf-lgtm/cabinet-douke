@@ -39,7 +39,7 @@ export default function DiagnosticPage() {
     setBusy(false)
   }
   const begin = () => run(async () => {
-    const j = await call('start', {})
+    const j = await call('start', { campaign: new URLSearchParams(window.location.search).get('c') })
     setToken(j.token); setTotal(j.progress.total); setQ(j.question)
     add({ from: 'me', text: 'Oui, on commence' }, { from: 'asta', text: j.question.prompt })
   })

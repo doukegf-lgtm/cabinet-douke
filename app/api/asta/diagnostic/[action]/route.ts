@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
   }
   const b = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>
   try {
-    const r = a === 'start' ? await start(ip) : a === 'answer' ? await answer(b.token, b.key, b.value) : await lead(b.token, b)
+    const r = a === 'start' ? await start(ip, typeof b.campaign === 'string' && /^[a-z0-9]{4,12}$/.test(b.campaign) ? b.campaign : null) : a === 'answer' ? await answer(b.token, b.key, b.value) : await lead(b.token, b)
     return NextResponse.json(r.body, { status: r.status })
   } catch (e) {
     console.error('asta', a, e)
