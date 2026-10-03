@@ -1,5 +1,12 @@
 {
   "crons": [
-    { "path": "/api/asta/cron/daily", "schedule": "0 6 * * *" }
+    {
+      "path": "/api/asta/cron/daily",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/asta/cron/discover",
+      "schedule": "0 7 * * *"
+    }
   ]
 }

@@ -21,11 +21,11 @@ async function loadAnswers(db: Db, id: string): Promise<Answers> {
   return Object.fromEntries((data ?? []).map((r) => [r.question_key, r.value]))
 }
 
-export async function start(ip: string): Promise<R> {
+export async function start(ip: string, campaign: string | null = null): Promise<R> {
   const db = getServiceClient()
   const token = randomBytes(32).toString('hex')
   const { data, error } = await db.from('asta_diagnostic_sessions')
-    .insert({ definition_version: DEF.version, token_hash: sha(token), ip_hash: sha(ip) }).select('id').single()
+    .insert({ definition_version: DEF.version, token_hash: sha(token), ip_hash: sha(ip), campaign_code: campaign }).select('id').single()
   if (error || !data) return fail(500, 'Démarrage impossible')
   await log(db, 'diagnostic_started', data.id, {}, `start:${data.id}`)
   return { status: 200, body: { token, question: publicQuestion(nextQuestion(new Set())!), progress: { done: 0, total: TOTAL } } }
