@@ -2752,7 +2752,6 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
     { label: 'ASTA', view: 'ASTA', icon: <Brain size={20} />, show: isAdmin },
-    { label: 'Diagnostic', view: 'DIAGNOSTIC', icon: <CheckSquare size={20} />, show: isAdmin },
     { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin },
     { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
     { label: 'Offres & Contrats', view: 'OFFRES', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
@@ -2799,7 +2798,7 @@ export default function FullyLoadedPremiumDashboard() {
 
           <nav className="p-4 space-y-1.5">
             {navItems.map((item, idx) => (
-              <button key={idx} onClick={() => { if (item.view === 'ASTA' || item.view === 'DIAGNOSTIC') { window.location.href = item.view === 'ASTA' ? '/asta' : '/diagnostic'; return } setCurrentView(item.view); setIsMobileMenuOpen(false); }}
+              <button key={idx} onClick={() => { if (item.view === 'ASTA') { window.location.href = '/asta'; return } setCurrentView(item.view); setIsMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${currentView === item.view ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/20 border-l-4 border-blue-400' : 'hover:bg-slate-800/60 hover:text-white text-slate-400'}`}>
                 {item.icon}<span>{item.label}</span>
               </button>
