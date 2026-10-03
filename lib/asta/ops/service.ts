@@ -1,5 +1,5 @@
 import { getServiceClient } from '@/lib/platform/supabase-server'
-import { makeCode, dedupeKey, type CampaignInput } from './campaign'
+import { makeCode, dedupeKey, cleanContact, type CampaignInput } from './campaign'
 import { extractJsonArray, filterCandidates } from './candidates'
 import { proposePosts, draftMessage, type Camp } from './content'
 import { generate } from '../ai/gemini'
@@ -123,7 +123,7 @@ export async function discover(db: Db, c: Row, max = 8): Promise<{ added: number
   if (limit <= 0) return { added: 0, dropped: 0, note: 'Objectif atteint.' }
 
   if (c.type === 'relance') {
-    const p = await db.from('asta_prospects').select('id, full_name, sector')
+    const p = await db.from('asta_prospects').select('id, full_name, sector, whatsapp')
       .not('consent_at', 'is', null).eq('do_not_contact', false).neq('stage', 'client').order('created_at', { ascending: false }).limit(200)
     if (p.error) throw new Error('lecture')
     const known = new Set<string>(rows.map((x) => x.prospect_id).filter(Boolean))
@@ -135,7 +135,7 @@ export async function discover(db: Db, c: Row, max = 8): Promise<{ added: number
     if (sess.length) { const r = await db.from('asta_diagnostic_results').select('session_id, total').in('session_id', sess.map((x) => x.id)); results = r.data ?? [] }
     const score = (pid: string) => { const sid = sess.find((x) => x.prospect_id === pid)?.id; return results.find((r) => r.session_id === sid)?.total as number | undefined }
     const ins = await db.from('asta_campaign_profiles').upsert(cand.map((x) => ({
-      campaign_id: c.id, prospect_id: x.id, dedupe_key: `p:${x.id}`, name: x.full_name || 'Prospect', sector: x.sector ?? null,
+      campaign_id: c.id, prospect_id: x.id, dedupe_key: `p:${x.id}`, name: x.full_name || 'Prospect', sector: x.sector ?? null, public_contact: cleanContact(x.whatsapp),
       reason: 'A terminé le diagnostic DOUKE et accepté d’être recontacté', fit_score: score(x.id) ?? null,
     })), { onConflict: 'campaign_id,dedupe_key', ignoreDuplicates: true }).select('id')
     if (ins.error) throw new Error('écriture')
