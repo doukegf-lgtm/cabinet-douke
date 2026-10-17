@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
+import { scoutIa, extractJson } from '@/lib/scout/ia-client'
+import type { ScoutSource } from '@/lib/scout/ia-client'
 
 interface Prospect {
   id: string
@@ -23,6 +25,14 @@ interface Prospect {
 interface Compte { id: string; name: string; username: string }
 interface Service { id: string; nom: string; description: string; actif: boolean; structures?: string }
 
+interface LookupPerson { nom: string; poste?: string; structure?: string; zone?: string; secteur?: string; email?: string; telephone?: string; confiance?: string; resume?: string; source?: string }
+interface LookupStructure { nom?: string; secteur?: string; zone?: string; site?: string; description?: string }
+interface LookupResult { structure: LookupStructure | null; personnes: LookupPerson[] }
+
+const WEB_RULES = ` MODE RECHERCHE WEB : utilise la recherche Google. Ne retiens que des organisations et des contacts réellement trouvés dans les sources. N'invente JAMAIS d'email ni de téléphone : laisse une chaîne vide s'ils ne figurent pas dans les sources (cette consigne remplace les indications "plausible" ci-dessus). Réponds uniquement avec le tableau JSON, sans markdown ni texte autour.`
+
+const LOOKUP_SYSTEM = `Tu es un analyste en intelligence commerciale en Afrique de l'Ouest. Utilise la recherche web pour répondre. Ne retiens QUE des informations professionnelles issues de sources publiques (sites officiels, registres d'entreprises, presse, pages professionnelles). Ne recherche et ne renvoie JAMAIS d'information privée (adresse personnelle, famille, santé, opinions, réseaux sociaux personnels). N'invente rien : email et téléphone uniquement s'ils figurent explicitement dans une source, sinon chaîne vide. Si le nom est ambigu (homonymes), renvoie plusieurs candidats avec une confiance faible ou moyenne. Réponds UNIQUEMENT avec un objet JSON, sans markdown ni texte autour : {"structure": {"nom":"","secteur":"","zone":"","site":"","description":""} ou null, "personnes": [{"nom":"","poste":"","structure":"","zone":"","secteur":"","email":"","telephone":"","confiance":"haute|moyenne|faible","resume":"","source":""}]}. Le tableau personnes est vide si rien de fiable n'est trouvé.`
+
 const STRUCTURES = [
   { id: 'DOUKE', label: 'Cabinet DOUKE', org_id: 'd2222222-2222-2222-2222-222222222222', color: '#3B82F6' },
   { id: 'CONACCE', label: 'CONACCE', org_id: 'c1111111-1111-1111-1111-111111111111', color: '#2ecc71' },
@@ -41,7 +51,7 @@ export default function ProspectionPage() {
   const [form, setForm] = useState<Partial<Prospect>>({ statut:'nouveau', scoring:50 })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [genForm, setGenForm] = useState({ secteur:'', zone:'', service_douke:'', nb:'5' })
+  const [genForm, setGenForm] = useState({ secteur:'', zone:'', service_douke:'', nb:'5', profil:'', web:true })
   const [showGen, setShowGen] = useState(false)
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [filtreService, setFiltreService] = useState('tous')
@@ -52,6 +62,51 @@ export default function ProspectionPage() {
   const [editingService, setEditingService] = useState<Service|null>(null)
   const [savingService, setSavingService] = useState(false)
   const sb = createBrowserSupabaseClient()
+  const [showLookup, setShowLookup] = useState(false)
+  const [lookupMode, setLookupMode] = useState('personne')
+  const [lookupQuery, setLookupQuery] = useState('')
+  const [lookupZone, setLookupZone] = useState('Bénin')
+  const [lookingUp, setLookingUp] = useState(false)
+  const [lookupError, setLookupError] = useState('')
+  const [lookupRes, setLookupRes] = useState<LookupResult | null>(null)
+  const [lookupSources, setLookupSources] = useState<ScoutSource[]>([])
+
+  async function rechercherLookup() {
+    const q = lookupQuery.trim()
+    if (!q || lookingUp) return
+    setLookingUp(true); setLookupError(''); setLookupRes(null); setLookupSources([])
+    try {
+      const zoneTxt = lookupZone.trim() || 'Bénin'
+      const prompt = lookupMode === 'personne'
+        ? `Recherche les informations professionnelles publiques sur la personne « ${q} » (zone : ${zoneTxt}) : fonctions actuelles, structure, coordonnées professionnelles si elles sont publiées.`
+        : `Recherche la structure « ${q} » (zone : ${zoneTxt}) et liste les personnes qui lui sont rattachées (dirigeants, responsables, contacts clés) d'après des sources publiques. Maximum 10 personnes.`
+      const r = await scoutIa({ grounded: true, system: LOOKUP_SYSTEM, prompt })
+      let parsed: Partial<LookupResult>
+      try { parsed = JSON.parse(extractJson(r.text)) } catch { throw new Error('Réponse IA illisible : précisez le nom ou la zone et réessayez') }
+      const personnes = Array.isArray(parsed.personnes) ? parsed.personnes.filter(p => p && typeof p.nom === 'string' && p.nom.trim()) : []
+      const st = parsed.structure && parsed.structure.nom ? parsed.structure : null
+      setLookupRes({ structure: st, personnes })
+      setLookupSources(r.sources)
+    } catch (e) { setLookupError(e instanceof Error ? e.message : 'Erreur de recherche') }
+    setLookingUp(false)
+  }
+
+  function ajouterDepuisLookup(p: LookupPerson) {
+    setForm({
+      nom: p.nom,
+      structure: p.structure || lookupRes?.structure?.nom || '',
+      contact: p.poste || '',
+      email: p.email || '',
+      telephone: p.telephone || '',
+      zone: p.zone || lookupRes?.structure?.zone || lookupZone,
+      secteur: p.secteur || lookupRes?.structure?.secteur || '',
+      source: `Recherche web (${lookupMode}) - confiance ${p.confiance || 'n/a'}${p.source ? ' - ' + p.source : ''}`,
+      notes: p.resume || '',
+      statut: 'nouveau',
+      scoring: 50,
+    })
+    setEditing(true); setSelected(null)
+  }
 
   useEffect(() => {
     const raw = localStorage.getItem('eden_current_user')
@@ -117,20 +172,33 @@ export default function ProspectionPage() {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({
-          system: `Tu es un expert commercial en Afrique de l'Ouest spécialisé dans l'identification de prospects qualifiés pour un cabinet de conseil (DOUKE). Génère une liste de prospects RÉALISTES et QUALIFIÉS. Réponds UNIQUEMENT en JSON valide: tableau de ${genForm.nb} objets avec les champs: nom (personne contact), structure (entreprise/organisation), contact (titre/poste), email (format valide plausible), telephone (format Bénin/UEMOA), zone, secteur, service_douke, scoring (0-100), source (comment identifier ce prospect), notes (pourquoi ce prospect est qualifié pour le service DOUKE indiqué).`,
-          prompt: `Génère ${genForm.nb} prospects qualifiés pour le service DOUKE "${genForm.service_douke}" dans le secteur "${genForm.secteur}" zone "${genForm.zone || 'Bénin'}". Ces prospects doivent avoir un besoin réel et identifiable pour ce service.`
+          grounded: genForm.web,
+          system: `Tu es un expert commercial en Afrique de l'Ouest spécialisé dans l'identification de prospects qualifiés pour un cabinet de conseil (DOUKE). Génère une liste de prospects RÉALISTES et QUALIFIÉS. Réponds UNIQUEMENT en JSON valide: tableau de ${genForm.nb} objets avec les champs: nom (personne contact), structure (entreprise/organisation), contact (titre/poste), email (format valide plausible), telephone (format Bénin/UEMOA), zone, secteur, service_douke, scoring (0-100), source (comment identifier ce prospect), notes (pourquoi ce prospect est qualifié pour le service DOUKE indiqué).${genForm.web ? WEB_RULES : ''}`,
+          prompt: `Génère ${genForm.nb} prospects qualifiés pour le service DOUKE "${genForm.service_douke}" dans le secteur "${genForm.secteur}" zone "${genForm.zone || 'Bénin'}". Ces prospects doivent avoir un besoin réel et identifiable pour ce service.${genForm.profil.trim() ? ` Profil recherché : ${genForm.profil.trim()}.` : ''}`
         })
       })
       const data = await res.json()
       if (!res.ok) { throw new Error(data?.error || 'Erreur generation IA') }
       const text = data.text || '[]'
-      const parsed = JSON.parse(text.replace(/```json|```/g,'').trim())
-      const toInsert = parsed.map((p: Record<string,unknown>) => ({ ...p, statut:'nouveau', service_douke: genForm.service_douke }))
-      await sb.from('scout_prospects').insert(toInsert)
+      const parsed = JSON.parse(extractJson(text))
+      const srcWeb = Array.isArray(data.sources) ? (data.sources as { uri?: string; title?: string }[]).slice(0, 3).map(s => s.title || s.uri || '').filter(Boolean).join(' ; ') : ''
+      const toInsert = (Array.isArray(parsed) ? parsed : []).map((p: Record<string,unknown>) => {
+        const sc = Number(p.scoring)
+        const str = (k: string) => (typeof p[k] === 'string' ? (p[k] as string) : '')
+        return {
+          nom: str('nom'), structure: str('structure'), contact: str('contact'), email: str('email'), telephone: str('telephone'),
+          zone: str('zone'), secteur: str('secteur'), scoring: Number.isFinite(sc) ? sc : 50,
+          source: [str('source'), srcWeb ? 'Web : ' + srcWeb : ''].filter(Boolean).join(' | '),
+          notes: str('notes'), statut: 'nouveau', service_douke: genForm.service_douke,
+        }
+      }).filter((p: { nom: string }) => p.nom.trim())
+      if (toInsert.length === 0) throw new Error('Aucun prospect exploitable dans la réponse IA')
+      const ins = await sb.from('scout_prospects').insert(toInsert)
+      if (ins.error) throw new Error(ins.error.message)
       await load()
       setShowGen(false)
-      setGenForm({ secteur:'', zone:'', service_douke:'', nb:'5' })
-    } catch(e) { alert('Erreur génération IA') }
+      setGenForm({ secteur:'', zone:'', service_douke:'', nb:'5', profil:'', web:true })
+    } catch(e) { alert('Erreur génération IA : ' + (e instanceof Error ? e.message : 'inconnue')) }
     setGenerating(false)
   }
 
@@ -197,6 +265,7 @@ export default function ProspectionPage() {
             ) : null}
             {isAdmin && <button style={{ ...S.btn(), fontSize:'11px' }} onClick={() => setShowServices(!showServices)}>⚙️ Gérer services</button>}
             <button style={S.btn()} onClick={() => setShowGen(!showGen)}>🤖 Générer prospects IA</button>
+            <button style={S.btn()} onClick={() => setShowLookup(!showLookup)}>🕵️ Personne / structure</button>
             <button style={S.btn(true)} onClick={() => { setForm({ statut:'nouveau', scoring:50 }); setEditing(true); setSelected(null) }}>+ Ajouter</button>
           </div>
         </div>
@@ -204,6 +273,14 @@ export default function ProspectionPage() {
         {showGen && (
           <div style={{ background:'#0F1923', border:'1px solid rgba(201,168,76,.2)', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
             <div style={{ fontSize:'13px', fontWeight:600, color:'#C9A84C', marginBottom:'12px' }}>🤖 Génération IA de prospects qualifiés</div>
+            <div style={{ marginBottom:'10px' }}>
+              <label style={S.label}>Profil recherché (optionnel) : décrivez le prospect idéal</label>
+              <textarea value={genForm.profil} onChange={e => setGenForm(f => ({...f, profil:e.target.value}))} rows={3} style={{ ...S.input, resize:'vertical' }} placeholder="Ex : PME agroalimentaire de 10 à 50 salariés, en croissance, qui cherche un financement bancaire ou une levée de fonds" />
+              <label style={{ display:'flex', alignItems:'center', gap:'6px', marginTop:'6px', fontSize:'11px', color:'#A8B4C0', cursor:'pointer' }}>
+                <input type="checkbox" checked={genForm.web} onChange={e => setGenForm(f => ({...f, web:e.target.checked}))} />
+                Recherche web avec sources (recommandé : évite les fiches inventées)
+              </label>
+            </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
               <div>
                 <label style={S.label}>Secteur cible *</label>
@@ -234,6 +311,68 @@ export default function ProspectionPage() {
           </div>
         )}
 
+        {showLookup && (
+          <div style={{ background:'#0F1923', border:'1px solid rgba(52,152,219,.25)', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
+            <div style={{ fontSize:'13px', fontWeight:600, color:'#3B82F6', marginBottom:'10px' }}>🕵️ Recherche par nom de personne ou de structure</div>
+            <div style={{ display:'flex', gap:'6px', marginBottom:'10px' }}>
+              {([['personne','👤 Une personne'],['structure','🏢 Une structure']] as [string,string][]).map(([m,l]) => (
+                <button key={m} onClick={() => setLookupMode(m)} style={{ ...S.btn(lookupMode===m), fontSize:'11px', padding:'4px 10px' }}>{l}</button>
+              ))}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px', marginBottom:'10px' }}>
+              <div>
+                <label style={S.label}>{lookupMode==='personne' ? 'Nom de la personne *' : 'Nom de la structure *'}</label>
+                <input value={lookupQuery} onChange={e => setLookupQuery(e.target.value)} onKeyDown={e => { if (e.key==='Enter') rechercherLookup() }} style={S.input} placeholder={lookupMode==='personne' ? "Ex : Prénom Nom" : "Ex : nom de l'entreprise ou de l'ONG"} />
+              </div>
+              <div>
+                <label style={S.label}>Zone / pays</label>
+                <input value={lookupZone} onChange={e => setLookupZone(e.target.value)} style={S.input} />
+              </div>
+            </div>
+            <div style={{ fontSize:'10px', color:'#6B7A8D', marginBottom:'10px', lineHeight:'1.5' }}>{"Informations professionnelles issues de sources web publiques, à vérifier avant tout contact (risque d'homonymes). Aucune donnée privée n'est recherchée."}</div>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <button style={S.btn(true)} onClick={rechercherLookup} disabled={lookingUp || !lookupQuery.trim()}>{lookingUp ? '⏳ Recherche…' : '🔎 Rechercher'}</button>
+              <button style={S.btn()} onClick={() => setShowLookup(false)}>Fermer</button>
+            </div>
+            {lookupError && <div style={{ color:'#e74c3c', fontSize:'11px', marginTop:'8px' }}>{lookupError}</div>}
+            {lookupRes && (
+              <div style={{ marginTop:'12px' }}>
+                {lookupRes.structure && (
+                  <div style={{ background:'rgba(255,255,255,.03)', borderRadius:'8px', padding:'10px', marginBottom:'8px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:700, color:'#E8E8E8' }}>🏢 {lookupRes.structure.nom}</div>
+                    <div style={{ fontSize:'11px', color:'#6B7A8D' }}>{[lookupRes.structure.secteur, lookupRes.structure.zone, lookupRes.structure.site].filter(Boolean).join(' · ')}</div>
+                    {lookupRes.structure.description && <div style={{ fontSize:'11px', color:'#A8B4C0', marginTop:'4px' }}>{lookupRes.structure.description}</div>}
+                  </div>
+                )}
+                {lookupRes.personnes.length === 0 ? (
+                  <div style={{ fontSize:'12px', color:'#6B7A8D' }}>Aucune personne trouvée dans les sources publiques.</div>
+                ) : lookupRes.personnes.map((p, i) => (
+                  <div key={i} style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.06)', borderRadius:'8px', padding:'10px', marginBottom:'6px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', gap:'8px', alignItems:'flex-start' }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:'12px', fontWeight:600, color:'#E8E8E8' }}>{p.nom}</div>
+                        <div style={{ fontSize:'11px', color:'#6B7A8D' }}>{[p.poste, p.structure].filter(Boolean).join(' · ')}</div>
+                        {(p.email || p.telephone) && <div style={{ fontSize:'11px', color:'#A8B4C0', marginTop:'2px' }}>{[p.email, p.telephone].filter(Boolean).join(' · ')}</div>}
+                        {p.resume && <div style={{ fontSize:'11px', color:'#A8B4C0', marginTop:'4px' }}>{p.resume}</div>}
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'6px', alignItems:'flex-end' }}>
+                        <span style={{ fontSize:'10px', padding:'2px 8px', borderRadius:'10px', border:'1px solid rgba(255,255,255,.15)', color: p.confiance==='haute' ? '#2ecc71' : p.confiance==='moyenne' ? '#C9A84C' : '#e67e22' }}>{'confiance ' + (p.confiance || 'faible')}</span>
+                        <button style={{ ...S.btn(true), padding:'4px 8px', fontSize:'11px' }} onClick={() => ajouterDepuisLookup(p)}>➕ Prospect</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {lookupSources.length > 0 && (
+                  <div style={{ fontSize:'10px', color:'#6B7A8D', marginTop:'8px', lineHeight:'1.6' }}>
+                    Sources : {lookupSources.slice(0, 8).map((s, i) => (
+                      <a key={i} href={s.uri} target="_blank" rel="noreferrer" style={{ color:'#3B82F6', marginRight:'8px' }}>{s.title || s.uri}</a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {showServices && isAdmin && (
           <div style={{ background:'#0F1923', border:'1px solid rgba(201,168,76,.2)', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
             <div style={{ fontSize:'13px', fontWeight:700, color:'#C9A84C', marginBottom:'12px' }}>⚙️ Services DOUKE — Gestion</div>
