@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
 import { scoutIa, extractJson } from '@/lib/scout/ia-client'
 import type { ScoutSource } from '@/lib/scout/ia-client'
+import { enrichirContact, enrichirLot } from '@/lib/scout/contact-enrich'
 
 interface Prospect {
   id: string
@@ -29,7 +30,7 @@ interface LookupPerson { nom: string; poste?: string; structure?: string; zone?:
 interface LookupStructure { nom?: string; secteur?: string; zone?: string; site?: string; description?: string }
 interface LookupResult { structure: LookupStructure | null; personnes: LookupPerson[] }
 
-const WEB_RULES = ` MODE RECHERCHE WEB : utilise la recherche Google. Ne retiens que des organisations et des contacts réellement trouvés dans les sources. N'invente JAMAIS d'email ni de téléphone : laisse une chaîne vide s'ils ne figurent pas dans les sources (cette consigne remplace les indications "plausible" ci-dessus). Réponds uniquement avec le tableau JSON, sans markdown ni texte autour.`
+const WEB_RULES = ` MODE RECHERCHE WEB : utilise la recherche Google. Ne retiens que des organisations et des contacts réellement trouvés dans les sources. N'invente JAMAIS d'email ni de téléphone : laisse une chaîne vide s'ils ne figurent pas dans les sources ; pour le téléphone, privilégie le standard ou le service commercial de la structure s'il est publié (cette consigne remplace les indications "plausible" ci-dessus). Réponds uniquement avec le tableau JSON, sans markdown ni texte autour.`
 
 const LOOKUP_SYSTEM = `Tu es un analyste en intelligence commerciale en Afrique de l'Ouest. Utilise la recherche web pour répondre. Ne retiens QUE des informations professionnelles issues de sources publiques (sites officiels, registres d'entreprises, presse, pages professionnelles). Ne recherche et ne renvoie JAMAIS d'information privée (adresse personnelle, famille, santé, opinions, réseaux sociaux personnels). N'invente rien : email et téléphone uniquement s'ils figurent explicitement dans une source, sinon chaîne vide. Si le nom est ambigu (homonymes), renvoie plusieurs candidats avec une confiance faible ou moyenne. Réponds UNIQUEMENT avec un objet JSON, sans markdown ni texte autour : {"structure": {"nom":"","secteur":"","zone":"","site":"","description":""} ou null, "personnes": [{"nom":"","poste":"","structure":"","zone":"","secteur":"","email":"","telephone":"","confiance":"haute|moyenne|faible","resume":"","source":""}]}. Le tableau personnes est vide si rien de fiable n'est trouvé.`
 
@@ -63,6 +64,24 @@ export default function ProspectionPage() {
   const [savingService, setSavingService] = useState(false)
   const sb = createBrowserSupabaseClient()
   const [showLookup, setShowLookup] = useState(false)
+  const [telBusy, setTelBusy] = useState(false)
+
+  async function chercherTelephone(p: Prospect) {
+    if (telBusy) return
+    setTelBusy(true)
+    try {
+      const c = await enrichirContact(p.nom, p.structure, p.zone)
+      if (!c) { alert('Aucun numéro public fiable trouvé pour cette structure.') }
+      else {
+        const upd = { telephone: c.telephone, email: p.email || c.email, source: [p.source, 'Contact web : ' + c.source].filter(Boolean).join(' | ') }
+        const { error } = await sb.from('scout_prospects').update(upd).eq('id', p.id)
+        if (error) throw new Error(error.message)
+        await load()
+        setSelected(s => (s && s.id === p.id ? { ...s, ...upd } : s))
+      }
+    } catch (e) { alert('Erreur : ' + (e instanceof Error ? e.message : 'inconnue')) }
+    setTelBusy(false)
+  }
   const [lookupMode, setLookupMode] = useState('personne')
   const [lookupQuery, setLookupQuery] = useState('')
   const [lookupZone, setLookupZone] = useState('Bénin')
@@ -106,6 +125,11 @@ export default function ProspectionPage() {
       scoring: 50,
     })
     setEditing(true); setSelected(null)
+    if (!p.telephone) {
+      enrichirContact(p.nom, p.structure || lookupRes?.structure?.nom || '', p.zone || lookupZone)
+        .then(c => { if (c) setForm(f => (f.nom === p.nom && !f.telephone ? { ...f, telephone: c.telephone, source: [f.source, 'Contact web : ' + c.source].filter(Boolean).join(' | ') } : f)) })
+        .catch(() => {})
+    }
   }
 
   useEffect(() => {
@@ -193,11 +217,13 @@ export default function ProspectionPage() {
         }
       }).filter((p: { nom: string }) => p.nom.trim())
       if (toInsert.length === 0) throw new Error('Aucun prospect exploitable dans la réponse IA')
+      const telTrouves = genForm.web ? await enrichirLot(toInsert) : 0
       const ins = await sb.from('scout_prospects').insert(toInsert)
       if (ins.error) throw new Error(ins.error.message)
       await load()
       setShowGen(false)
       setGenForm({ secteur:'', zone:'', service_douke:'', nb:'5', profil:'', web:true })
+      if (genForm.web) alert(`${toInsert.length} prospect(s) ajouté(s) ; ${telTrouves} téléphone(s) trouvé(s) dans des sources publiques. Les autres peuvent être complétés avec « 📞 Chercher le téléphone ».`)
     } catch(e) { alert('Erreur génération IA : ' + (e instanceof Error ? e.message : 'inconnue')) }
     setGenerating(false)
   }
@@ -485,6 +511,7 @@ export default function ProspectionPage() {
             )}
             <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
               <button style={S.btn(true)} onClick={() => { setForm(selected); setEditing(true) }}>✏️ Modifier</button>
+              {!selected.telephone && <button style={S.btn()} onClick={() => chercherTelephone(selected)} disabled={telBusy}>{telBusy ? '⏳ Recherche…' : '📞 Chercher le téléphone'}</button>}
               <button style={{ ...S.btn(), color:'#e74c3c', borderColor:'rgba(231,76,60,.3)' }} onClick={() => remove(selected.id)}>🗑️</button>
             </div>
           </div>

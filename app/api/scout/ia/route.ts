@@ -6,8 +6,8 @@ export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   const a = await requireUser(); if (!a.ok) return a.response
-  if (!hit(`ia:${a.session.sub}`, 30, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: 'Limite horaire atteinte (30 requêtes)' }, { status: 429 })
+  if (!hit(`ia:${a.session.sub}`, 60, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Limite horaire atteinte (60 requêtes)' }, { status: 429 })
   }
   try {
     const { system, prompt, grounded } = await req.json()
