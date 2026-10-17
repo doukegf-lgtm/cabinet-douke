@@ -22,3 +22,12 @@ export async function scoutIa(opts: { system: string; prompt: string; grounded?:
   if (!res.ok) throw new Error(data?.error || 'Erreur IA')
   return { text: data.text || '', sources: Array.isArray(data.sources) ? data.sources : [] }
 }
+
+/** Normalise un numéro trouvé sur le web ('' si invalide). Bénin : 8 chiffres (ancien format) ou 10 chiffres commençant par 01 (depuis 2024). */
+export function normaliserTel(raw: string, zone = ''): string {
+  let s = String(raw || '').replace(/[^\d+]/g, '')
+  if (s.startsWith('00')) s = '+' + s.slice(2)
+  if (s.startsWith('+')) return /^\+\d{10,15}$/.test(s) ? s : ''
+  if (!/^(01)?\d{8}$/.test(s)) return ''
+  return /b[eé]nin|cotonou|calavi|porto|parakou|^\s*$/i.test(zone) ? '+229' + s : ''
+}
