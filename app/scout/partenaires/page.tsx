@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createBrowserSupabaseClient } from '@/app/supabaseClient'
+import { scoutIa, extractJson } from '@/lib/scout/ia-client'
+import type { ScoutSource } from '@/lib/scout/ia-client'
 
 const ZONES = ['Tous', 'Bénin', 'Togo', 'Côte d\'Ivoire', 'Sénégal', 'UEMOA', 'OHADA']
 const SERVICES = ['Tous', 'Levée PME', 'Financement BC', 'ONG/Impact', 'PPP', 'Garantie', 'Veille']
@@ -48,6 +50,8 @@ export default function PartenairesPage() {
   const [form, setForm] = useState<Partial<Partenaire>>({})
   const [saving, setSaving] = useState(false)
   const [seeded, setSeeded] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const [searchMsg, setSearchMsg] = useState('')
 
   const supabase = createBrowserSupabaseClient()
 
@@ -67,6 +71,58 @@ export default function PartenairesPage() {
   async function seed() {
     const { data } = await supabase.from('partenaires_eden').insert(PARTENAIRES_INITIAUX).select()
     if (data) { setPartenaires(data); setSeeded(true) }
+  }
+
+    async function rechercherPartenaires() {
+    if (searching) return
+    setSearching(true); setSearchMsg('')
+    try {
+      const crit: string[] = []
+      if (zone !== 'Tous') crit.push(`zone : ${zone}`)
+      if (service !== 'Tous') crit.push(`service : ${service}`)
+      if (type !== 'Tous') crit.push(`type d'institution : ${type}`)
+      if (search.trim()) crit.push(`mots-clés : ${search.trim()}`)
+      const connus = partenaires.map(p => p.nom).slice(0, 120).join(' ; ')
+      const r = await scoutIa({
+        grounded: true,
+        system: `Tu es un analyste en financement du développement en Afrique de l'Ouest. Utilise la recherche web pour identifier des partenaires financiers RÉELS (banques, institutions de développement, fonds d'investissement, IMF, fonds de garantie, agences) actifs dans la zone demandée. N'invente jamais d'organisation, d'email ni de site : laisse une chaîne vide si l'information ne figure pas dans les sources. Réponds UNIQUEMENT avec un tableau JSON, sans markdown ni texte autour. Chaque objet contient : nom, type (une valeur parmi : ${TYPES.slice(1).join(' | ')}), zones (tableau de valeurs parmi : ${ZONES.slice(1).join(' | ')}), services (tableau de valeurs parmi : ${SERVICES.slice(1).join(' | ')}), description (1 à 2 phrases), contact (nom d'un service ou d'une direction, pas d'une personne), email, site, ticket_min et ticket_max (entiers en FCFA, 0 si inconnu), score (0 à 100, pertinence par rapport aux critères).`,
+        prompt: `Trouve 5 nouveaux partenaires financiers correspondant à ces critères : ${crit.length ? crit.join(' ; ') : 'toute la zone UEMOA/OHADA'}. Exclus ceux déjà connus : ${connus || 'aucun'}.`,
+      })
+      let arr: unknown
+      try { arr = JSON.parse(extractJson(r.text)) } catch { throw new Error('Réponse IA illisible, réessayez') }
+      if (!Array.isArray(arr)) throw new Error('Réponse IA inattendue, réessayez')
+      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+      const str = (o: Record<string, unknown>, k: string) => (typeof o[k] === 'string' ? (o[k] as string).trim() : '')
+      const known = new Set(partenaires.map(p => norm(p.nom || '')))
+      const typesOk = TYPES.slice(1), zonesOk = ZONES.slice(1), servicesOk = SERVICES.slice(1)
+      const rows: Omit<Partenaire, 'id'>[] = []
+      for (const x of arr as Record<string, unknown>[]) {
+        const nom = str(x, 'nom')
+        if (!nom || known.has(norm(nom))) continue
+        known.add(norm(nom))
+        const sc = Math.max(0, Math.min(100, Math.round(Number(x.score) || 0)))
+        if (sc < scoreMin) continue
+        const zs = Array.isArray(x.zones) ? (x.zones as unknown[]).map(String).filter(z => zonesOk.includes(z)) : []
+        const ss = Array.isArray(x.services) ? (x.services as unknown[]).map(String).filter(s => servicesOk.includes(s)) : []
+        rows.push({
+          nom,
+          type: typesOk.includes(str(x, 'type')) ? str(x, 'type') : (type !== 'Tous' ? type : ''),
+          zones: zs.length ? zs : (zone !== 'Tous' ? [zone] : []),
+          services: ss.length ? ss : (service !== 'Tous' ? [service] : []),
+          description: str(x, 'description').slice(0, 500),
+          contact: str(x, 'contact'), email: str(x, 'email'), site: str(x, 'site'),
+          ticket_min: Math.max(0, Number(x.ticket_min) || 0), ticket_max: Math.max(0, Number(x.ticket_max) || 0),
+          score: sc, statut: 'prospect',
+        })
+      }
+      if (rows.length === 0) { setSearchMsg('Aucun nouveau partenaire trouvé pour ces critères.'); setSearching(false); return }
+      const { error } = await supabase.from('partenaires_eden').insert(rows)
+      if (error) throw new Error(error.message)
+      await load()
+      const src = r.sources.slice(0, 4).map(s => s.title || s.uri).join(', ')
+      setSearchMsg(`${rows.length} partenaire(s) ajouté(s) au statut prospect, à vérifier.${src ? ' Sources : ' + src : ''}`)
+    } catch (e) { setSearchMsg(e instanceof Error ? e.message : 'Erreur de recherche') }
+    setSearching(false)
   }
 
   const filtered = partenaires.filter(p => {
@@ -137,6 +193,8 @@ export default function PartenairesPage() {
           <input type="range" min={0} max={100} value={scoreMin} onChange={e => setScoreMin(+e.target.value)} style={{ flex: 1 }} />
         </div>
         <button style={S.btn(true)} onClick={() => { setForm({}); setEditing(true); setSelected(null) }}>+ Ajouter</button>
+        <button style={S.btn()} onClick={rechercherPartenaires} disabled={searching} title="Utilise les filtres actifs : zone, service, type, mot-clé, score min">{searching ? '⏳ Recherche web…' : '🔎 Chercher de nouveaux partenaires (web)'}</button>
+        {searchMsg && <div style={{ gridColumn:'1 / -1', fontSize:'12px', color:'#A8B4C0' }}>{searchMsg}</div>}
       </div>
 
       {loading ? (
