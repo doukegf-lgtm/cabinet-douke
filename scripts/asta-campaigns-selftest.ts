@@ -1,6 +1,7 @@
 import { validateCampaign, makeCode, dedupeKey, domainOf, cleanContact, underCap, isUuid } from '../lib/asta/ops/campaign'
 import { extractJsonArray, filterCandidates } from '../lib/asta/ops/candidates'
 import { proposePosts, draftMessage, posterSvg } from '../lib/asta/ops/content'
+import { postsToAdd } from '../lib/asta/ops/min-actions'
 
 let fails = 0
 const ok = (n: string, c: boolean) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}`); if (!c) fails++ }
@@ -47,5 +48,11 @@ ok('période d\'un jour : 5 horaires distincts', new Set(proposePosts({ ...camp,
 const msg = draftMessage({ ...camp, type: 'prospection' }, { name: 'Alpha SARL', sector: 'Commerce', city: 'Cotonou' })
 ok('message : transparence IA, désinscription, nom', msg.includes('assistante numérique') && msg.includes('STOP') && msg.includes('Alpha SARL'))
 ok('affiche : texte échappé', !posterSvg({ headline: '<script>x</script>', sub: 'a', cta: 'b', footer: 'c' }).includes('<script>'))
+const P5 = proposePosts(camp, 'https://exemple.test')
+ok('min 3 actions : aucune existante => 3 publications ajoutées', postsToAdd([], [], P5).add.length === 3)
+ok('min 3 actions : 1 message prévu => 2 publications ajoutées', postsToAdd([], ['msg:a'], P5).add.length === 2)
+ok('min 3 actions : 3 actions déjà actives => rien à ajouter', postsToAdd([{ slot_key: 'post1', status: 'proposed' }, { slot_key: 'post2', status: 'approved' }, { slot_key: 'post3', status: 'done' }], [], P5).add.length === 0)
+ok('min 3 actions : une action annulée ne compte pas et son créneau n’est pas réutilisé', (() => { const r = postsToAdd([{ slot_key: 'post1', status: 'cancelled' }], [], P5); return r.add.length === 3 && !r.add.some((p) => p.slot_key === 'post1') })())
+ok('min 3 actions : plafonné aux publications disponibles', postsToAdd(P5.slice(0, 4).map((p) => ({ slot_key: p.slot_key, status: 'cancelled' })), [], P5).add.length === 1)
 console.log(fails ? `\n${fails} test(s) en échec` : '\nTous les tests passent')
 process.exit(fails ? 1 : 0)

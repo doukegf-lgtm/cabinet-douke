@@ -4,6 +4,7 @@ import { extractJsonArray, filterCandidates } from './candidates'
 import { proposePosts, draftMessage, type Camp } from './content'
 import { generate } from '../ai/gemini'
 import { reserve } from './budget'
+import { postsToAdd } from './min-actions'
 
 type Db = ReturnType<typeof getServiceClient>
 type Row = Record<string, any>
@@ -181,11 +182,15 @@ export async function proposeActions(id: string): Promise<R> {
     if (p.error) return { status: 500, body: { error: 'Lecture impossible' } }
     ;(p.data ?? []).forEach((x: Row) => rows.push({ campaign_id: id, profile_id: x.id, slot_key: `msg:${x.id}`, kind: 'message', title: `Message à ${x.name}`.slice(0, 120), content: { draft: draftMessage(c.data as Camp, x as { name: string; sector?: string | null; city?: string | null }), contact: x.public_contact ?? null } }))
   }
-  if (rows.length === 0) return { status: 200, body: { created: 0, note: 'Aucun profil accepté pour lequel préparer un message.' } }
+  const ex = await db.from('asta_campaign_actions').select('slot_key, status').eq('campaign_id', id).limit(500)
+    if (ex.error) return { status: 500, body: { error: 'Lecture impossible' } }
+    const plan = postsToAdd((ex.data ?? []) as { slot_key: string; status: string }[], rows.map((r) => String(r.slot_key)), proposePosts(c.data as Camp, SITE))
+    plan.add.forEach((p) => rows.push({ campaign_id: id, slot_key: p.slot_key, kind: 'publication', title: p.title, content: p.content, scheduled_at: p.scheduled_at }))
+    if (rows.length === 0) return { status: 200, body: { created: 0, note: 'Les actions nécessaires existent déjà.' } }
   const ins = await db.from('asta_campaign_actions').upsert(rows, { onConflict: 'campaign_id,slot_key', ignoreDuplicates: true }).select('id')
   if (ins.error) return { status: 500, body: { error: 'Création impossible' } }
   await ev(db, 'actions_proposed', `actions_proposed:${id}:${Date.now()}`, { count: (ins.data ?? []).length })
-  return { status: 200, body: { created: (ins.data ?? []).length } }
+  return { status: 200, body: { created: (ins.data ?? []).length, completed: plan.add.length } }
 }
 
 const PROF: Record<string, { from: string[]; to: string }> = {

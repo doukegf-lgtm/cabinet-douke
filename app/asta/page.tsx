@@ -77,6 +77,16 @@ export default function AstaPage() {
     if (r.ok) { setF({ ...f, name: '', conditions: '' }); setSel(r.j.campaign.id); await loadList() }
     setBusy(false)
   }
+  async function del(path: string, ask: string, campaignDeleted = false) {
+    if (!window.confirm(ask)) return
+    setBusy(true); setMsg('')
+    let r = await api(path, 'DELETE')
+    if (!r.ok && r.j.needs_force && window.confirm(String(r.j.error) + '\n\nSupprimer quand même ?')) { setMsg(''); r = await api(path + '?force=1', 'DELETE') }
+    if (r.ok) { setMsg('Supprimé.'); if (campaignDeleted) setSel('') }
+    await loadList()
+    if (sel && !(r.ok && campaignDeleted)) await loadDet(sel)
+    setBusy(false)
+  }
   function brief() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return setMsg('Synthèse vocale indisponible sur ce navigateur.')
     const t = `Bonjour. Vous avez ${pl(sum.active ?? 0, 'campagne')} active${(sum.active ?? 0) > 1 ? 's' : ''}, ${pl(sum.profiles_proposed ?? 0, 'profil')} à examiner et ${pl(sum.actions_to_approve ?? 0, 'action')} à valider.`
@@ -121,9 +131,9 @@ export default function AstaPage() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {c.status === 'draft' && op('validate', 'Valider la campagne', true)}
         {c.status === 'active' && c.type !== 'publication' && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/campaigns/' + c.id, { op: 'discover' }, (j) => `${j.added ?? 0} profil(s) proposé(s), ${j.dropped ?? 0} écarté(s)${j.note ? ' · ' + j.note : ''}`)}>Chercher des profils maintenant</button>}
-        {['draft', 'active', 'paused'].includes(c.status) && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/campaigns/' + c.id, { op: 'propose_actions' }, (j) => `${j.created ?? 0} action(s) préparée(s)${j.note ? ' · ' + j.note : ''}`)}>Préparer les actions</button>}
+        {['draft', 'active', 'paused'].includes(c.status) && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/campaigns/' + c.id, { op: 'propose_actions' }, (j) => `${j.created ?? 0} action(s) préparée(s)${j.completed ? ` (dont ${j.completed} publication(s) de campagne ajoutée(s) pour atteindre 3 actions minimum)` : ''}${j.note ? ' · ' + j.note : ''}`)}>Préparer les actions</button>}
         {c.status === 'active' && op('pause', 'Pause')}{c.status === 'paused' && op('resume', 'Reprendre')}
-        {['active', 'paused'].includes(c.status) && op('complete', 'Terminer')}{['draft', 'active', 'paused'].includes(c.status) && op('cancel', 'Annuler')}
+        {['active', 'paused'].includes(c.status) && op('complete', 'Terminer')}{['draft', 'active', 'paused'].includes(c.status) && op('cancel', 'Annuler')}{c.status !== 'active' && <button style={{ ...btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.4)' }} disabled={busy} onClick={() => del('/api/asta/admin/campaigns/' + c.id, `Supprimer définitivement la campagne « ${c.name} » avec tous ses profils et ses actions ?`, true)}>🗑 Supprimer la campagne</button>}
       </div>
       <div style={{ ...box, fontSize: 13, color: '#A8B4C0' }}>
         <b style={{ color: GOLD }}>Statistiques</b><br />
@@ -139,7 +149,7 @@ export default function AstaPage() {
           <div style={{ color: '#A8B4C0', fontSize: 13 }}>{[p.sector, p.city].filter(Boolean).join(' · ')}{p.public_contact ? ` · ${p.public_contact}` : ' · contact non trouvé'}</div>
           {p.reason && <div style={{ color: '#A8B4C0', fontSize: 12, marginTop: 2 }}>{p.reason}</div>}
           {p.source_url && <div style={{ fontSize: 12, marginTop: 2 }}>Source à vérifier : <a href={p.source_url} target="_blank" rel="noreferrer" style={{ color: GOLD }}>{p.source_url}</a></div>}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{(POPS[p.status] ?? []).map(([o, l]) => <button key={o} style={btn(o === 'accept')} disabled={busy} onClick={() => act('/api/asta/admin/profiles/' + p.id, { op: o })}>{l}</button>)}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{(POPS[p.status] ?? []).map(([o, l]) => <button key={o} style={btn(o === 'accept')} disabled={busy} onClick={() => act('/api/asta/admin/profiles/' + p.id, { op: o })}>{l}</button>)}{c.type !== 'relance' && <a style={btn()} href={'/scout/prospection?lookup=' + encodeURIComponent(String(p.name ?? '')) + '&zone=' + encodeURIComponent(String(p.city || c.zone || ''))} target="_blank" rel="noreferrer">🕵️ Trouver des contacts (Scout)</a>}<button style={{ ...btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.4)' }} disabled={busy} onClick={() => del('/api/asta/admin/profiles/' + p.id, `Supprimer le profil « ${p.name} » et les actions qui lui sont liées ?`)}>🗑 Supprimer</button></div>
         </div>
       ))}
       <h2 style={{ fontSize: 16, marginTop: 20 }}>Actions ({actions.length})</h2>
@@ -160,6 +170,7 @@ export default function AstaPage() {
               {a.status === 'approved' && <button style={btn(true)} disabled={busy} onClick={() => act('/api/asta/admin/actions/' + a.id, { op: 'done' })}>Marquer comme faite</button>}
               {(a.status === 'approved' || a.status === 'done') && <button style={btn()} onClick={() => results(a)}>Saisir les résultats</button>}
               {(a.status === 'proposed' || a.status === 'approved') && <button style={btn()} disabled={busy} onClick={() => act('/api/asta/admin/actions/' + a.id, { op: 'cancel' })}>Annuler</button>}
+                <button style={{ ...btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.4)' }} disabled={busy} onClick={() => del('/api/asta/admin/actions/' + a.id, `Supprimer l'action « ${a.title} » ? Pour une publication de campagne, « Préparer les actions » pourra la recréer.`)}>🗑 Supprimer</button>
               {(a.status === 'proposed' || a.status === 'approved') && <ActionEditor a={a} camp={c.name} busy={busy} save={(p) => act('/api/asta/admin/actions/' + a.id, { op: 'edit', ...p })} />}
             </div>
           </div>
@@ -191,7 +202,7 @@ export default function AstaPage() {
     <h2 style={{ fontSize: 16 }}>Campagnes ({list.length})</h2>
     {list.map((c) => (
       <div key={c.id} style={{ ...box, cursor: 'pointer' }} onClick={() => setSel(c.id)}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><b>{c.name}</b><span style={{ color: GOLD, fontSize: 12 }}>{TY[c.type]} · {CS[c.status]}</span></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><b>{c.name}</b><span style={{ color: GOLD, fontSize: 12 }}>{TY[c.type]} · {CS[c.status]}{c.status !== 'active' && <button style={{ ...btn(), marginLeft: 8, padding: '2px 8px', color: '#e74c3c' }} disabled={busy} onClick={(e) => { e.stopPropagation(); del('/api/asta/admin/campaigns/' + c.id, `Supprimer définitivement la campagne « ${c.name} » avec tous ses profils et ses actions ?`, true) }}>🗑</button>}</span></div>
         <div style={{ color: '#A8B4C0', fontSize: 12 }}>du {c.start_date} au {c.end_date} · objectif {c.target_count} · {c.profiles.proposed ?? 0} à examiner · {c.actions.proposed ?? 0} action(s) à valider</div>
       </div>
     ))}
