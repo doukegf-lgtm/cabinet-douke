@@ -62,6 +62,10 @@ export default function AstaPage() {
   const loadList = useCallback(async () => { const r = await api('/api/asta/admin/campaigns'); if (r.ok) { setList(r.j.campaigns ?? []); setSum(r.j.summary ?? {}) } }, [api])
   const loadDet = useCallback(async (id: string) => { const r = await api('/api/asta/admin/campaigns/' + id); if (r.ok) setDet(r.j) }, [api])
   useEffect(() => { loadList() }, [loadList])
+    useEffect(() => {
+      const id = new URLSearchParams(window.location.search).get('campaign') || ''
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) setSel(id)
+    }, [])
   useEffect(() => { if (sel) loadDet(sel); else setDet(null) }, [sel, loadDet])
 
   async function act(path: string, body: Row, after?: (j: Row) => string) {
@@ -149,7 +153,7 @@ export default function AstaPage() {
           <div style={{ color: '#A8B4C0', fontSize: 13 }}>{[p.sector, p.city].filter(Boolean).join(' · ')}{p.public_contact ? ` · ${p.public_contact}` : ' · contact non trouvé'}</div>
           {p.reason && <div style={{ color: '#A8B4C0', fontSize: 12, marginTop: 2 }}>{p.reason}</div>}
           {p.source_url && <div style={{ fontSize: 12, marginTop: 2 }}>Source à vérifier : <a href={p.source_url} target="_blank" rel="noreferrer" style={{ color: GOLD }}>{p.source_url}</a></div>}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{(POPS[p.status] ?? []).map(([o, l]) => <button key={o} style={btn(o === 'accept')} disabled={busy} onClick={() => act('/api/asta/admin/profiles/' + p.id, { op: o })}>{l}</button>)}{c.type !== 'relance' && <a style={btn()} href={'/scout/prospection?lookup=' + encodeURIComponent(String(p.name ?? '')) + '&zone=' + encodeURIComponent(String(p.city || c.zone || ''))} target="_blank" rel="noreferrer">🕵️ Trouver des contacts (Scout)</a>}<button style={{ ...btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.4)' }} disabled={busy} onClick={() => del('/api/asta/admin/profiles/' + p.id, `Supprimer le profil « ${p.name} » et les actions qui lui sont liées ?`)}>🗑 Supprimer</button></div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{(POPS[p.status] ?? []).map(([o, l]) => <button key={o} style={btn(o === 'accept')} disabled={busy} onClick={() => act('/api/asta/admin/profiles/' + p.id, { op: o })}>{l}</button>)}{c.type !== 'relance' && <a style={btn()} href={'/scout/prospection?lookup=' + encodeURIComponent(String(p.name ?? '')) + '&zone=' + encodeURIComponent(String(p.city || c.zone || '')) + '&from=asta&campaign=' + c.id}>🕵️ Trouver des contacts (Scout)</a>}<button style={{ ...btn(), color: '#e74c3c', borderColor: 'rgba(231,76,60,.4)' }} disabled={busy} onClick={() => del('/api/asta/admin/profiles/' + p.id, `Supprimer le profil « ${p.name} » et les actions qui lui sont liées ?`)}>🗑 Supprimer</button></div>
         </div>
       ))}
       <h2 style={{ fontSize: 16, marginTop: 20 }}>Actions ({actions.length})</h2>

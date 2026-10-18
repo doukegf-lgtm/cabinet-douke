@@ -90,6 +90,13 @@ export default function ProspectionPage() {
   const [lookupRes, setLookupRes] = useState<LookupResult | null>(null)
   const [lookupSources, setLookupSources] = useState<ScoutSource[]>([])
   const [autoLookup, setAutoLookup] = useState(false)
+  const [retourAsta, setRetourAsta] = useState('')
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('from') !== 'asta') return
+    const id = (sp.get('campaign') || '').trim()
+    setRetourAsta(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? '/asta?campaign=' + id : '/asta')
+  }, [])
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
     const q = (sp.get('lookup') || '').trim().slice(0, 200)
@@ -283,7 +290,10 @@ export default function ProspectionPage() {
     <div style={{ display:'grid', gridTemplateColumns:'1fr 380px', gap:'20px' }}>
       <div>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
+          {retourAsta && <a href={retourAsta} style={{ ...S.btn(true), textDecoration:'none', display:'inline-block' }}>← Retour à ASTA</a>}
           <h2 style={{ color:'#E8E8E8', fontSize:'16px', fontWeight:700, margin:0 }}>🔍 Prospection qualifiée</h2>
+        </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
             {/* Filtre structure — Admin voit tout avec sélecteur */}
             {(session?.role === 'Super-Admin' || !session?.org_id || session?.org_id === 'org_douke_01') ? (
