@@ -2,6 +2,7 @@ import { validateCampaign, makeCode, dedupeKey, domainOf, cleanContact, underCap
 import { extractJsonArray, filterCandidates } from '../lib/asta/ops/candidates'
 import { proposePosts, draftMessage, posterSvg } from '../lib/asta/ops/content'
 import { postsToAdd } from '../lib/asta/ops/min-actions'
+import { mergeContact } from '../lib/asta/ops/contact-merge'
 
 let fails = 0
 const ok = (n: string, c: boolean) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}`); if (!c) fails++ }
@@ -54,5 +55,14 @@ ok('min 3 actions : 1 message prévu => 2 publications ajoutées', postsToAdd([]
 ok('min 3 actions : 3 actions déjà actives => rien à ajouter', postsToAdd([{ slot_key: 'post1', status: 'proposed' }, { slot_key: 'post2', status: 'approved' }, { slot_key: 'post3', status: 'done' }], [], P5).add.length === 0)
 ok('min 3 actions : une action annulée ne compte pas et son créneau n’est pas réutilisé', (() => { const r = postsToAdd([{ slot_key: 'post1', status: 'cancelled' }], [], P5); return r.add.length === 3 && !r.add.some((p) => p.slot_key === 'post1') })())
 ok('min 3 actions : plafonné aux publications disponibles', postsToAdd(P5.slice(0, 4).map((p) => ({ slot_key: p.slot_key, status: 'cancelled' })), [], P5).add.length === 1)
+const M = (c: any, i: any): any => mergeContact(c, i)
+const C0 = { public_contact: null, reason: 'Motif découverte', source_url: null }
+ok('contact Scout : e-mail préféré (normalisé) quand le profil n’a pas de contact', M(C0, { nom: 'Awa Dossou', poste: 'Directrice', email: 'Awa@Exemple.BJ', telephone: '97 00 00 00', zone: 'Cotonou' }).patch.public_contact === 'awa@exemple.bj')
+ok('contact Scout : téléphone béninois normalisé en +229', M(C0, { nom: 'Awa', telephone: '97 00 00 00', zone: 'Cotonou' }).patch.public_contact === '+22997000000')
+ok('contact Scout : un contact existant n’est jamais écrasé (le nouveau va dans le motif)', (() => { const r = M({ ...C0, public_contact: '+22990000000' }, { nom: 'Awa', email: 'a@b.bj' }); return r.patch.public_contact === undefined && String(r.patch.reason).includes('a@b.bj') })())
+ok('contact Scout : contact invalide ignoré, nom noté dans le motif', (() => { const r = M(C0, { nom: 'Awa', email: 'pas un mail', telephone: '12' }); return r.patch.public_contact === undefined && String(r.patch.reason).includes('Contact : Awa') })())
+ok('contact Scout : idempotent (second envoi sans modification)', (() => { const inp = { nom: 'Awa', poste: 'DG', email: 'a@b.bj' }; const r1 = M(C0, inp); const r2 = M({ public_contact: r1.patch.public_contact ?? null, reason: r1.patch.reason ?? null, source_url: null }, inp); return Object.keys(r2.patch).length === 0 })())
+ok('contact Scout : nom requis', !!M(C0, { email: 'a@b.bj' }).error)
+ok('contact Scout : source reprise seulement en https', M(C0, { nom: 'Awa', source_url: 'http://x.bj' }).patch.source_url === undefined && M(C0, { nom: 'Awa', source_url: 'https://www.x.bj/p' }).patch.source_url === 'https://www.x.bj/p')
 console.log(fails ? `\n${fails} test(s) en échec` : '\nTous les tests passent')
 process.exit(fails ? 1 : 0)
