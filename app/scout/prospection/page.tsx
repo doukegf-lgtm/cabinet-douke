@@ -89,6 +89,18 @@ export default function ProspectionPage() {
   const [lookupError, setLookupError] = useState('')
   const [lookupRes, setLookupRes] = useState<LookupResult | null>(null)
   const [lookupSources, setLookupSources] = useState<ScoutSource[]>([])
+  const [autoLookup, setAutoLookup] = useState(false)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    const q = (sp.get('lookup') || '').trim().slice(0, 200)
+    if (!q) return
+    setShowLookup(true); setLookupMode('structure'); setLookupQuery(q)
+    setLookupZone((sp.get('zone') || '').trim().slice(0, 80) || 'Bénin')
+    setAutoLookup(true)
+  }, [])
+  useEffect(() => {
+    if (autoLookup) { setAutoLookup(false); rechercherLookup() }
+  }, [autoLookup]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function rechercherLookup() {
     const q = lookupQuery.trim()

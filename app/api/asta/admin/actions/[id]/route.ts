@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/platform/auth'
 import { hit } from '@/lib/platform/ratelimit'
 import { isUuid } from '@/lib/asta/ops/campaign'
+import { deleteAction } from '@/lib/asta/ops/delete-service'
 import { decideAction } from '@/lib/asta/ops/service'
 import { editAction } from '@/lib/asta/ops/edit-service'
 
@@ -22,4 +23,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const r = await decideAction(params.id, op, b, a.session.sub)
     return NextResponse.json(r.body, { status: r.status })
   } catch (e) { console.error('asta action', e); return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 }) }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const a = await requireAdmin(); if (!a.ok) return a.response
+  if (!isUuid(params.id)) return NextResponse.json({ error: 'Identifiant invalide' }, { status: 400 })
+  if (!hit(`del:${a.session.sub}`, 60, 3600000)) return NextResponse.json({ error: 'Trop de suppressions, réessayez plus tard.' }, { status: 429 })
+  try { const r = await deleteAction(params.id, a.session.sub); return NextResponse.json(r.body, { status: r.status }) }
+  catch (e) { console.error('asta action delete', e); return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 }) }
 }
