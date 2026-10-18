@@ -91,6 +91,29 @@ export default function ProspectionPage() {
   const [lookupSources, setLookupSources] = useState<ScoutSource[]>([])
   const [autoLookup, setAutoLookup] = useState(false)
   const [retourAsta, setRetourAsta] = useState('')
+  const [asta, setAsta] = useState<{ campaign: string; profile: string } | null>(null)
+  const [astaMsg, setAstaMsg] = useState('')
+  const [astaBusy, setAstaBusy] = useState('')
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    const re = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const c = sp.get('campaign') || '', pr = sp.get('profile') || ''
+    if (sp.get('from') === 'asta' && re.test(c) && re.test(pr)) setAsta({ campaign: c, profile: pr })
+  }, [])
+  async function associerAsta(p: LookupPerson, idx: number) {
+    if (!asta || astaBusy) return
+    setAstaBusy(String(idx)); setAstaMsg('')
+    try {
+      const res = await fetch('/api/asta/admin/profiles/' + asta.profile + '/contact', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign: asta.campaign, nom: p.nom, poste: p.poste || '', email: p.email || '', telephone: p.telephone || '', zone: p.zone || lookupZone, source_url: p.source || '' }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j?.error || 'Erreur ' + res.status)
+      setAstaMsg(j.message || 'Contact associé au profil ASTA.')
+    } catch (e) { setAstaMsg(e instanceof Error ? e.message : 'Erreur') }
+    setAstaBusy('')
+  }
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search)
     if (sp.get('from') !== 'asta') return
@@ -383,6 +406,7 @@ export default function ProspectionPage() {
               <button style={S.btn()} onClick={() => setShowLookup(false)}>Fermer</button>
             </div>
             {lookupError && <div style={{ color:'#e74c3c', fontSize:'11px', marginTop:'8px' }}>{lookupError}</div>}
+            {astaMsg && <div style={{ color:'#C9A84C', fontSize:'12px', marginTop:'8px' }}>{astaMsg}{retourAsta && <> · <a href={retourAsta} style={{ color:'#3B82F6' }}>← Retour à ASTA</a></>}</div>}
             {lookupRes && (
               <div style={{ marginTop:'12px' }}>
                 {lookupRes.structure && (
@@ -406,6 +430,7 @@ export default function ProspectionPage() {
                       <div style={{ display:'flex', flexDirection:'column', gap:'6px', alignItems:'flex-end' }}>
                         <span style={{ fontSize:'10px', padding:'2px 8px', borderRadius:'10px', border:'1px solid rgba(255,255,255,.15)', color: p.confiance==='haute' ? '#2ecc71' : p.confiance==='moyenne' ? '#C9A84C' : '#e67e22' }}>{'confiance ' + (p.confiance || 'faible')}</span>
                         <button style={{ ...S.btn(true), padding:'4px 8px', fontSize:'11px' }} onClick={() => ajouterDepuisLookup(p)}>➕ Prospect</button>
+                        {asta && <button style={{ ...S.btn(), padding:'4px 8px', fontSize:'11px' }} disabled={astaBusy !== ''} onClick={() => associerAsta(p, i)}>{astaBusy === String(i) ? '…' : '📎 Associer au profil ASTA'}</button>}
                       </div>
                     </div>
                   </div>
