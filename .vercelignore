@@ -1,0 +1,7 @@
+.env*
+private/fiscal/
+private/fiscal/**
+AUDIT_*.tar.gz
+node_modules/
+.next/
+.git/

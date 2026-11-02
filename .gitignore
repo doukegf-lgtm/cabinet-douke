@@ -6,3 +6,5 @@ node_modules
 *.tsbuildinfo
 .vercel
 .env*
+
+/private/fiscal/
