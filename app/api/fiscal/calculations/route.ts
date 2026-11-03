@@ -39,8 +39,42 @@ export async function GET(request: Request) {
     const { data, error } = await query
     if (error) return serverError()
 
+    const calculations = data ?? []
+    const ids = calculations.map((item) => item.id)
+
+    let events: Array<{
+      calculation_id: string
+      event_type: string
+      details: Record<string, unknown>
+      created_at: string
+    }> = []
+
+    if (ids.length > 0) {
+      const { data: eventRows, error: eventError } = await getServiceClient()
+        .from('fiscal_calculation_events')
+        .select('calculation_id,event_type,details,created_at')
+        .in('calculation_id', ids)
+        .order('created_at', { ascending: false })
+
+      if (eventError) return serverError()
+      events = eventRows ?? []
+    }
+
+    const eventsByCalculation = new Map<string, typeof events>()
+    for (const event of events) {
+      const current = eventsByCalculation.get(event.calculation_id) ?? []
+      current.push(event)
+      eventsByCalculation.set(event.calculation_id, current)
+    }
+
     return NextResponse.json(
-      { data: data ?? [], limit: 100 },
+      {
+        data: calculations.map((item) => ({
+          ...item,
+          events: eventsByCalculation.get(item.id) ?? [],
+        })),
+        limit: 100,
+      },
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch {
