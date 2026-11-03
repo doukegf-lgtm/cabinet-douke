@@ -326,16 +326,24 @@ export default function DossiersClient() {
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-600">{dossier.currency}</td>
                   <td className="px-5 py-4 text-right">
-                    {canEdit(dossier.status) ? (
-                      <button
-                        onClick={() => openEdit(dossier)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/fiscal-social/dossiers/${dossier.id}/saisie`}
+                        className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
                       >
-                        Modifier
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400">Verrouillé</span>
-                    )}
+                        Saisie annuelle
+                      </a>
+                      {canEdit(dossier.status) ? (
+                        <button
+                          onClick={() => openEdit(dossier)}
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          Modifier
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">Verrouillé</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -374,7 +382,7 @@ export default function DossiersClient() {
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-blue-700">Suivi des missions</div>
                 <h3 className="mt-1 text-xl font-bold text-slate-950">{selected ? 'Modifier le dossier' : 'Créer un dossier'}</h3>
-                <p className="mt-1 text-sm text-slate-500">Les champs marqués d'un * sont obligatoires.</p>
+                <p className="mt-1 text-sm text-slate-500">Les champs marqués d&apos;un * sont obligatoires.</p>
               </div>
               <button onClick={() => setPanelOpen(false)} aria-label="Fermer" className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">×</button>
             </div>
@@ -389,7 +397,7 @@ export default function DossiersClient() {
                     <option value="">Sélectionner un client actif</option>
                     {clients.map((client) => <option key={client.id} value={client.id}>{client.legal_name}</option>)}
                   </select>
-                  {clients.length === 0 && <span className="mt-1 block text-xs text-amber-700">Aucun client actif trouvé. Créez ou réactivez un client avant d'ouvrir un dossier.</span>}
+                  {clients.length === 0 && <span className="mt-1 block text-xs text-amber-700">Aucun client actif trouvé. Créez ou réactivez un client avant d&apos;ouvrir un dossier.</span>}
                 </label>
 
                 <label className="block text-sm font-medium text-slate-700">
@@ -429,7 +437,7 @@ export default function DossiersClient() {
                 </label>
 
                 <div className="rounded-xl bg-blue-50 p-4 text-xs leading-5 text-blue-800">
-                  Devise de référence : XOF. La création et les modifications sont journalisées. Aucun calcul fiscal ou social définitif n'est déclenché par cette opération.
+                  Devise de référence : XOF. La création et les modifications sont journalisées. Aucun calcul fiscal ou social définitif n&apos;est déclenché par cette opération.
                 </div>
               </div>
 
