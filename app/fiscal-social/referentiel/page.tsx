@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ModuleHomeLink from '@/components/fiscal-social/module-home-link'
 import { redirect } from 'next/navigation'
 import { requireAdmin } from '@/lib/platform/auth'
 import ReferentialClient from './referentiel-client'
@@ -12,6 +13,7 @@ export default async function ReferentialPage() {
   return (
     <main className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
+          <ModuleHomeLink />
         <div>
           <p className="text-sm text-gray-500">Cabinet DOUKE · Fiscal et social</p>
           <h1 className="text-2xl font-semibold">Référentiel juridique et réglementaire</h1>

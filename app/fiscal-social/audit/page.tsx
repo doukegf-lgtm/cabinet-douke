@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ModuleHomeLink from '@/components/fiscal-social/module-home-link'
 import { redirect } from 'next/navigation'
 import { requireAdmin } from '@/lib/platform/auth'
 import { FISCAL_MODULE } from '@/lib/fiscal/config'
@@ -15,6 +16,7 @@ export default async function FiscalAuditPage() {
     <main className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-3 px-5 py-5 sm:px-8 sm:flex-row sm:items-center sm:justify-between">
+          <ModuleHomeLink />
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
               CABINET DOUKE · ESPACE PROFESSIONNEL
