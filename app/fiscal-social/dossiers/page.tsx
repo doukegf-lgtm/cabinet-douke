@@ -46,6 +46,9 @@ export default async function FiscalDossiersPage() {
           <Link href="/fiscal-social/documents" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
             <span>▤</span> Documents
           </Link>
+          <Link href="/fiscal-social/audit" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
+            <span>▤</span> Journal d’audit
+          </Link>
           <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-400">
             <span>⌁</span> Calculs <span className="ml-auto text-[10px]">Bloqués</span>
           </div>
