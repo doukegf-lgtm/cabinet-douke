@@ -4,22 +4,26 @@ import { getServiceClient } from '@/lib/platform/supabase-server'
 import { computeItsVps, ItsVpsBlockedError } from '@/lib/fiscal/engine/its-vps'
 import { resolveValidatedItsRules } from '@/lib/fiscal/engine/its-rules'
 import { parseItsVpsSection } from '@/lib/fiscal/its-input'
+import { computeDgiPenalties, penaltyInputsFromItsVps, PenaltyBlockedError } from '@/lib/fiscal/engine/dgi-penalties'
+import { resolveValidatedDgiPenaltyRules } from '@/lib/fiscal/engine/dgi-penalty-rules'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const ENGINE_VERSION = 'its-vps-1.0.0'
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const ENGINE_VERSION = 'its-vps-1.1.0'
 const WORKBOOK_VERSION = 'V8-reference-regles-du-referentiel'
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const serverError = () => NextResponse.json({ error: 'Une erreur serveur est survenue.' }, { status: 500, headers: NO_STORE })
 
 /**
- * POST /api/fiscal/calculations/its-vps   { dossier_id, fiscal_year }
+ * POST /api/fiscal/calculations/its-vps   { dossier_id, fiscal_year, calc_date? }
  * Calcule ITS + VPS d'un exercice depuis la section `its_vps` VALIDÉE et des règles VALIDÉES du référentiel.
  * Impossible => 422 avec blocages, rien n'est enregistré. Réussi => calcul immuable enregistré
  * (résultat figé), validation ultérieure via PATCH /api/fiscal/calculations.
- * Les pénalités et intérêts DGI ne sont PAS calculés ici (lot dédié).
+ * Si `calc_date` (YYYY-MM-DD) est fourni, les pénalités et intérêts DGI (art. 487, 488, 491) sont calculés
+ * avec des règles VALIDÉES du référentiel ; sinon seul l'impôt dû est calculé. La date n'est jamais implicite.
  */
 export async function POST(request: Request) {
   try {
@@ -37,6 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Paramètres invalides (dossier_id, fiscal_year).' }, { status: 400 })
     }
     const fiscalYear = p.fiscal_year as number
+    const hasCalcDate = p.calc_date !== undefined && p.calc_date !== null
+    if (hasCalcDate && (typeof p.calc_date !== 'string' || !DATE_RE.test(p.calc_date))) {
+      return NextResponse.json({ error: 'calc_date invalide (AAAA-MM-JJ).' }, { status: 400 })
+    }
     const client = getServiceClient()
 
     const { data: listed, error: listErr } = await client.rpc('fiscal_list_section_inputs', {
@@ -75,13 +83,29 @@ export async function POST(request: Request) {
       }, { status: 422, headers: NO_STORE })
     }
 
+    // Pénalités DGI : uniquement sur demande explicite (calc_date), avec règles validées.
+    let penalties = null
+    let penaltyTrace: unknown[] = []
+    if (hasCalcDate) {
+      const pr = await resolveValidatedDgiPenaltyRules(client, fiscalYear)
+      if (!pr.ok) return NextResponse.json({ error: 'Règles de pénalités DGI non validées ou incomplètes.', blockers: pr.blockers }, { status: 422, headers: NO_STORE })
+      try {
+        penalties = computeDgiPenalties(penaltyInputsFromItsVps(computed), pr.rules, p.calc_date as string)
+        penaltyTrace = pr.trace
+      } catch (e) {
+        if (e instanceof PenaltyBlockedError) return NextResponse.json({ error: 'Calcul des pénalités impossible.', blockers: e.reasons.map(m => ({ code: 'DGI_PENALTY_BLOCKED', message: m })) }, { status: 422, headers: NO_STORE })
+        return serverError()
+      }
+    }
+
     const inputSnapshot = {
-      kind: 'its_vps', fiscal_year: fiscalYear, source_input_id: section.id, source_input_version: section.version,
-      rules_trace: resolution.trace,
+      kind: 'its_vps', fiscal_year: fiscalYear, calc_date: hasCalcDate ? p.calc_date : null,
+      source_input_id: section.id, source_input_version: section.version,
+      rules_trace: resolution.trace, penalty_rules_trace: penaltyTrace,
     }
     const { data, error } = await client.rpc('fiscal_create_calculation_result', {
       p_actor_id: access.session.sub, p_dossier_id: p.dossier_id, p_input_snapshot: inputSnapshot,
-      p_result_snapshot: computed, p_engine_version: ENGINE_VERSION, p_workbook_version: WORKBOOK_VERSION,
+      p_result_snapshot: penalties ? { ...computed, penalties } : computed, p_engine_version: ENGINE_VERSION, p_workbook_version: WORKBOOK_VERSION,
     })
     if (error) {
       if (error.code === '22023') return NextResponse.json({ error: error.message }, { status: 400 })
@@ -90,7 +114,7 @@ export async function POST(request: Request) {
       return serverError()
     }
     return NextResponse.json(
-      { data, totals: computed.totals, message: 'Calcul ITS/VPS enregistré. Il doit être soumis à revue puis validé.' },
+      { data, totals: computed.totals, penalties: penalties ? penalties.totals : null, message: 'Calcul ITS/VPS enregistré. Il doit être soumis à revue puis validé.' },
       { status: 201, headers: NO_STORE },
     )
   } catch {
