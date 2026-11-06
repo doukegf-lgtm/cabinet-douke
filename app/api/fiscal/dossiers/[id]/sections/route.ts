@@ -20,6 +20,7 @@ const SECTIONS = new Set([
   'official_notices',
   'payment_plan',
   'supporting_documents',
+  'tax_profile',
 ])
 
 function jsonError(message: string, status = 400) {

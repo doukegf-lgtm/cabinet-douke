@@ -4,6 +4,7 @@ import ModuleHomeLink from '@/components/fiscal-social/module-home-link'
 import { requireAdmin } from '@/lib/platform/auth'
 import { FISCAL_MODULE } from '@/lib/fiscal/config'
 import AnnualInputClient from './saisie-client'
+import TaxProfileClient from './tax-profile-client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,7 @@ export default async function AnnualInputPage({
 
       <div className="mx-auto max-w-[1200px] px-5 py-7 sm:px-8">
         <AnnualInputClient dossierId={params.id} />
+        <TaxProfileClient dossierId={params.id} />
       </div>
 
       <footer className="border-t border-slate-200 bg-white px-5 py-4 text-center text-xs text-slate-400">
