@@ -16,13 +16,13 @@ export const AMOUNT_FIELDS = [
 export type AnnualPayload = {
   source_mode: 'actual' | 'estimated'
   source_note: string | null
-  ca_fiscal_ht: number | null
-  charges_comptables: number | null
-  charges_deductibles_justifiees: number | null
-  reintegrations_fiscales: number | null
-  deductions_fiscales: number | null
-  acomptes_is_justifies: number | null
-  credits_is_valides: number | null
+  ca_fiscal_ht: string | null
+  charges_comptables: string | null
+  charges_deductibles_justifiees: string | null
+  reintegrations_fiscales: string | null
+  deductions_fiscales: string | null
+  acomptes_is_justifies: string | null
+  credits_is_valides: string | null
 }
 
 export async function readAnnualBody(request: Request) {
@@ -98,15 +98,27 @@ export function validateAnnualPayload(
       data[field] = null
       continue
     }
-    if (
-      typeof value !== 'number' ||
-      !Number.isFinite(value) ||
-      value < 0 ||
-      value > 999999999999999
-    ) {
-      return { ok: false, error: `Montant invalide pour ${field}.` }
+    // Les nouvelles saisies sont des chaînes décimales exactes.
+    // Compatibilité temporaire : seuls les anciens nombres entiers sûrs sont acceptés.
+    if (typeof value === 'string') {
+      if (!/^\d{1,15}(\.\d{1,2})?$/.test(value)) {
+        return { ok: false, error: `Montant invalide pour ${field}. Utilisez au maximum deux décimales, sans séparateur de milliers.` }
+      }
+      data[field] = value
+      continue
     }
-    data[field] = value
+
+    if (
+      typeof value === 'number' &&
+      Number.isSafeInteger(value) &&
+      value >= 0 &&
+      value <= 999999999999999
+    ) {
+      data[field] = String(value)
+      continue
+    }
+
+    return { ok: false, error: `Montant invalide ou imprécis pour ${field}. Transmettez le montant sous forme de chaîne décimale.` }
   }
 
   return { ok: true, data }

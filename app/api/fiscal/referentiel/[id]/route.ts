@@ -55,8 +55,23 @@ export async function PATCH(request: Request, context: { params: { id: string } 
       .maybeSingle()
 
     if (error) {
+      if (error.code === '55000') {
+        return NextResponse.json(
+          { error: 'Cette fiche est verrouillée. Une règle validée ne peut être modifiée : créez une nouvelle fiche ou utilisez uniquement le statut remplacé/abrogé.' },
+          { status: 409 },
+        )
+      }
       if (error.code === '23514') {
-        return NextResponse.json({ error: 'Validation impossible : vérifiez la source officielle, l’article et les dates d’application.' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Validation impossible : vérifiez la source officielle, l’article et les dates d’application.' },
+          { status: 400 },
+        )
+      }
+      if (error.code === '23503') {
+        return NextResponse.json(
+          { error: 'Le texte juridique source est introuvable.' },
+          { status: 400 },
+        )
       }
       throw error
     }

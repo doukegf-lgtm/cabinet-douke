@@ -117,10 +117,9 @@ export function validateReferentialPayload(
       return { ok: false, error: 'Statut de vérification invalide.' }
     }
     data.verification_status = input.verification_status
-    if (input.verification_status !== 'validated') {
-      data.validated_by = null
-      data.validated_at = null
-    }
+    // Ne pas effacer les métadonnées d'une règle validée
+    // lorsqu'elle passe à replaced ou repealed.
+    // La base contrôle les transitions et leur immutabilité.
   }
 
   if (

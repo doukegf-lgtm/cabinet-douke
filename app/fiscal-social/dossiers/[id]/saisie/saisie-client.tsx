@@ -5,13 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 type Payload = {
   source_mode: 'actual' | 'estimated'
   source_note: string | null
-  ca_fiscal_ht: number | null
-  charges_comptables: number | null
-  charges_deductibles_justifiees: number | null
-  reintegrations_fiscales: number | null
-  deductions_fiscales: number | null
-  acomptes_is_justifies: number | null
-  credits_is_valides: number | null
+  ca_fiscal_ht: string | null
+  charges_comptables: string | null
+  charges_deductibles_justifiees: string | null
+  reintegrations_fiscales: string | null
+  deductions_fiscales: string | null
+  acomptes_is_justifies: string | null
+  credits_is_valides: string | null
 }
 
 type Revision = {
@@ -104,9 +104,10 @@ function dateLabel(value: string) {
   })
 }
 
-function formatAmount(value: number | null | undefined) {
-  if (value === null || value === undefined) return 'Non renseigné'
-  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value) + ' XOF'
+function formatAmount(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === '') return 'Non renseigné'
+  // Ne pas convertir un montant en Number pour l'afficher.
+  return String(value) + ' XOF'
 }
 
 export default function AnnualInputClient({ dossierId }: { dossierId: string }) {
@@ -159,7 +160,22 @@ export default function AnnualInputClient({ dossierId }: { dossierId: string }) 
   }, [load])
 
   useEffect(() => {
-    setForm(current ? { ...EMPTY, ...current.payload } : EMPTY)
+    if (!current) {
+      setForm(EMPTY)
+    } else {
+      // Les anciennes fiches peuvent contenir des nombres JSON.
+      // String() permet de les réafficher ; leur précision historique
+      // dépend toutefois de la valeur qui avait déjà été enregistrée.
+      const legacy = current.payload as unknown as Record<string, unknown>
+      const next: Payload = { ...EMPTY, ...current.payload }
+      for (const field of FIELDS) {
+        const value = legacy[field.key]
+        next[field.key] = value === null || value === undefined
+          ? null
+          : String(value)
+      }
+      setForm(next)
+    }
     setReviewNote(current?.validation_note ?? '')
     setHistoryOpen(false)
   }, [current])
@@ -169,9 +185,10 @@ export default function AnnualInputClient({ dossierId }: { dossierId: string }) 
   const canReview = !locked && current?.status === 'submitted'
 
   function setAmount(key: Field['key'], raw: string) {
+    const value = raw.trim()
     setForm((previous) => ({
       ...previous,
-      [key]: raw.trim() === '' ? null : Number(raw),
+      [key]: value === '' ? null : value,
     }))
   }
 
@@ -332,9 +349,8 @@ export default function AnnualInputClient({ dossierId }: { dossierId: string }) 
                 <label key={field.key} className="block text-sm font-semibold text-slate-700">
                   {field.label}
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={form[field.key] ?? ''}
                     onChange={(event) => setAmount(field.key, event.target.value)}
                     placeholder="Montant en XOF"
