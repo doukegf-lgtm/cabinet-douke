@@ -93,8 +93,9 @@ export class CnssBlockedError extends Error {
 }
 
 // ---------- exact decimal helpers ----------
-const S = 100_000_000_000_000n;      // 1e14
-const RS = 1_000_000n;               // 1e6
+const Z = BigInt(0);
+const S = BigInt('100000000000000');   // 1e14
+const RS = BigInt(1000000);            // 1e6
 function parseScaled(v: unknown, maxDec: number, label: string): bigint {
   if (typeof v !== 'string') throw new CnssBlockedError([`${label}: chaîne décimale exigée (nombre JS refusé)`]);
   const m = /^(\d+)(?:\.(\d+))?$/.exec(v);
@@ -111,11 +112,11 @@ function rateInt(v: unknown, l: string): bigint {
 }
 function mulRate(a: bigint, r: bigint, l: string): bigint {
   const p = a * r;
-  if (p % RS !== 0n) throw new CnssBlockedError([`${l}: division inexacte (arrondi non défini)`]);
+  if (p % RS !== Z) throw new CnssBlockedError([`${l}: division inexacte (arrondi non défini)`]);
   return p / RS;
 }
 export function fmt(a: bigint): string {
-  const neg = a < 0n; const x = neg ? -a : a;
+  const neg = a < Z; const x = neg ? -a : a;
   const i = x / S; let f = (x % S).toString().padStart(14, '0').replace(/0+$/, '');
   return (neg ? '-' : '') + i.toString() + (f ? '.' + f : '');
 }
@@ -179,7 +180,7 @@ function checkRules(params: Params, periods: string[]): string[] {
       if (strict && r.ceiling.kind === 'unknown') errs.push(`${r.code}: plafond d'assiette non vérifié en ${p}`);
     }
   }
-  return [...new Set(errs)];
+  return Array.from(new Set(errs));
 }
 
 // ---------- calcul ----------
@@ -192,7 +193,7 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
     if (seen.has(k)) errs.push(`Doublon salarié/période ${k}`);
     seen.add(k);
   }
-  errs.push(...checkRules(params, [...new Set(lines.map(l => l.period))]));
+  errs.push(...checkRules(params, Array.from(new Set(lines.map(l => l.period)))));
   if (errs.length) throw new CnssBlockedError(errs);
 
   const proc = params.procedure;
@@ -202,7 +203,7 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
   const out: LineResult[] = [];
   const runWarn: string[] = [];
   const byPeriod: CnssResult['byPeriod'] = {};
-  let tE = 0n, tS = 0n, tU = 0n, tP = 0n;
+  let tE = Z, tS = Z, tU = Z, tP = Z;
 
   for (const l of lines) {
     const w: string[] = [];
@@ -214,12 +215,12 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
     else {
       if (parts.every(x => x === null)) throw new CnssBlockedError([`${id}: aucun élément de rémunération (aucun zéro implicite)`]);
       if (l.gross === null) throw new CnssBlockedError([`${id}: salaire brut manquant`]);
-      base = parts.reduce<bigint>((a, x, i) => a + (x === null ? 0n : money(x, `${id} champ ${i}`)), 0n);
+      base = parts.reduce<bigint>((a, x, i) => a + (x === null ? Z : money(x, `${id} champ ${i}`)), Z);
     }
     if (l.provenance !== 'real') w.push(`Donnée ${l.provenance === 'estimated' ? 'ESTIMÉE' : 'en RÉPARTITION FORFAITAIRE'}`);
 
     const comps: LineResult['components'] = {};
-    let emp = 0n, sal = 0n;
+    let emp = Z, sal = Z;
     for (const r of params.contributionRules.filter(x => inRange(l.period, x))) {
       let rate = r.rate;
       if (r.code.includes('RP') || rate === null) {
@@ -239,7 +240,7 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
     const due = emp + sal;
 
     // paiement reconnu (Parametres!B24)
-    let paid = 0n;
+    let paid = Z;
     const recognized = params.paymentRecognition === 'all' || l.paymentVerified === true;
     if (l.payment === 'yes') { if (recognized) paid = due; else w.push('Paiement non vérifié : non reconnu'); }
     else if (l.payment === 'partial') {
@@ -248,7 +249,7 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
       if (paid > due) { w.push('Montant payé > dû : plafonné au dû'); paid = due; }
     }
     const fullyPaid = paid === due && l.payment === 'yes' && recognized;
-    const unpaid = fullyPaid ? 0n : due - paid;
+    const unpaid = fullyPaid ? Z : due - paid;
 
     // échéance et retard
     const dueStr = l.dueDate ?? computeDueDate(l.period, per, proc.dueDay);
@@ -259,7 +260,7 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
     else late = lateMonths(dueD, l.paymentDate ? parseDate(l.paymentDate, `${id} paiement`) : calc, proc.lateCounting);
     // base de pénalité du classeur (U) : payé => cotisation totale ; sinon => reste dû
     const penBase = fullyPaid ? due : unpaid;
-    const pen = late === null ? 0n : mulRate(penBase * BigInt(late), penRate, `${id} pénalité`);
+    const pen = late === null ? Z : mulRate(penBase * BigInt(late), penRate, `${id} pénalité`);
     if (l.payment === 'partial') w.push('Paiement partiel : retard du versement partiel non modélisé (limite du classeur)');
 
     out.push({ employeeId: l.employeeId, period: l.period, provenance: l.provenance, baseCommon: fmt(base), components: comps,

@@ -97,7 +97,7 @@ export async function resolveValidatedCnssRules(
         || (r.effective_to !== null && r.effective_to < end)) continue
     byCode.set(r.code, [...(byCode.get(r.code) ?? []), r])
   }
-  for (const [code, rows] of byCode) {
+  for (const [code, rows] of Array.from(byCode.entries())) {
     if (rows.length > 1) blockers.push({ code: 'CNSS_RULE_OVERLAP', message: `${code} : plusieurs règles validées se chevauchent sur ${fiscalYear}.` })
   }
   if (blockers.length) return { ok: false, blockers }
