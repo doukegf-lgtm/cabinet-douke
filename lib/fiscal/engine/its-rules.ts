@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveValidatedParameters, type Blocker, type ResolvedParam } from './rules-common'
+import { parseMoney } from './decimal'
 import type { ItsRules } from './its-vps'
 
 /**
@@ -53,7 +54,7 @@ export async function resolveValidatedItsRules(client: SupabaseClient, fiscalYea
   if (blockers.length) return { ok: false, blockers }
   if (!isZero(brackets[0].from)) blockers.push({ code: 'ITS_BRACKET_START', message: 'La tranche 1 doit commencer à 0 (la tranche exonérée est une tranche à taux 0 explicite).' })
   for (let i = 1; i < brackets.length; i++) {
-    if (parseFloat(brackets[i].from) <= parseFloat(brackets[i - 1].from)) blockers.push({ code: 'ITS_BRACKET_ORDER', message: 'Les bornes des tranches doivent être strictement croissantes.' })
+    if (parseMoney(brackets[i].from, 'tranche ' + (i + 1)) <= parseMoney(brackets[i - 1].from, 'tranche ' + i)) blockers.push({ code: 'ITS_BRACKET_ORDER', message: 'Les bornes des tranches doivent être strictement croissantes.' })
   }
   for (const c of ['ITS_ORTB_MARCH', 'ITS_ORTB_JUNE', 'ITS_ORTB_JUNE_MIN_BASE']) {
     if (p[c].unit !== 'XOF' || p[c].currency !== 'XOF' || !AMOUNT.test(p[c].value)) blockers.push({ code: 'ORTB_FORMAT', message: c + ' : montant XOF invalide (0 autorisé si aucun montant).' })
