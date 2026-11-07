@@ -178,10 +178,12 @@ export interface CnssPeriodAnswer {
   payment: 'yes' | 'no' | 'partial' | 'unknown'
   paymentDate?: string | null
   amountPaid?: string | null   // obligatoire si 'partial' : montant payé pour TOUTE la période (tous salariés)
+  paymentVerified?: boolean   // preuve contrôlée par le cabinet ; jamais activée automatiquement
 }
 export interface CnssLinePayload {
   employee_id: string; period: string; gross: string; bonuses: string; benefits: string; other_taxable: string
-  payment: 'yes' | 'no' | 'partial'; provenance: LineProvenance; payment_date?: string; amount_paid?: string
+  payment: 'yes' | 'no' | 'partial'; provenance: LineProvenance
+  payment_date?: string; amount_paid?: string; payment_verified?: boolean
 }
 
 export function toCnssPayload(lines: SalaryLine[], answers: CnssPeriodAnswer[], opts: { headcount: number; rpRate: string | null }):
@@ -205,7 +207,8 @@ export function toCnssPayload(lines: SalaryLine[], answers: CnssPeriodAnswer[], 
     if (ans.payment === 'unknown') return err('Paiement CNSS « Je ne sais pas » (' + ans.from + ' à ' + ans.to + ') : relancer le client ou traiter par le cabinet')
     const l = lines[i]
     const row: CnssLinePayload = { employee_id: l.employeeId, period: l.month, gross: l.gross, bonuses: l.bonuses, benefits: l.benefits,
-      other_taxable: l.otherTaxable, payment: ans.payment, provenance: l.provenance }
+      other_taxable: l.otherTaxable, payment: ans.payment, provenance: l.provenance,
+      payment_verified: ans.paymentVerified === true }
     if (ans.payment !== 'no' && ans.paymentDate) {
       if (!DATE.test(ans.paymentDate)) return err('Date de paiement CNSS invalide "' + ans.paymentDate + '" (AAAA-MM-JJ attendu)')
       row.payment_date = ans.paymentDate
