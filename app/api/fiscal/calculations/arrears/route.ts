@@ -366,6 +366,24 @@ export async function POST(request: Request) {
       ],
     }
 
+    if (p.dry_run === true) {
+      return NextResponse.json(
+        {
+          data: null,
+          dry_run: true,
+          persisted: false,
+          totals,
+          input_snapshot: inputSnapshot,
+          result_snapshot: resultSnapshot,
+          message: 'DGI + CNSS simulation completed. No result was saved.',
+        },
+        {
+          status: 200,
+          headers: { 'Cache-Control': 'no-store, max-age=0' },
+        },
+      )
+    }
+
     const { data, error } = await client.rpc(
       'fiscal_create_calculation_result',
       {
