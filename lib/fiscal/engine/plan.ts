@@ -11,6 +11,7 @@ export interface PlanInput {
   debtId: string
   organism: string
   type: 'fiscal' | 'social' | 'other'
+  origin?: 'historical_notice' | 'payroll'
   balance: string
   frozenBalance?: string | null
   startDate: string
@@ -29,6 +30,7 @@ export interface PlanParams {
 export interface PlanResult {
   debtId: string
   organism: string
+  origin?: 'historical_notice' | 'payroll'
   type: string
   agreementStatus: string
   base: string
@@ -180,6 +182,7 @@ function run(plans: PlanInput[], params: PlanParams): PlansResult {
     output.push({
       debtId: id,
       organism: plan.organism,
+      origin: plan.origin,
       type: plan.type,
       agreementStatus: plan.agreement === 'confirmed' ? 'Accord confirmé'
         : (plan.agreement === 'to_negotiate' ? 'À négocier' : 'Simulation seulement'),

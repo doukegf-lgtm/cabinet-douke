@@ -91,8 +91,20 @@ function run(input: ForecastInput): ForecastResult {
   const cnssPayments: Record<string, bigint> = {}
 
   input.plans.plans.forEach(function (plan) {
-    // Le classeur recherche les natures contenant CNSS, pas uniquement l'égalité stricte.
-    if ((plan.organism || '').toUpperCase().indexOf('CNSS') >= 0) {
+    const isCnssPayroll =
+      plan.origin === 'payroll' ||
+      (
+        plan.origin === undefined &&
+        (plan.organism || '').toUpperCase().indexOf('CNSS') >= 0
+      )
+
+    if (isCnssPayroll) {
+      if (plan.type !== 'social') {
+        throw new CalcBlockedError([
+          'Un échéancier CNSS doit être classé dans les remboursements sociaux.'
+        ])
+      }
+
       Object.keys(plan.schedule).forEach(function (month) {
         cnssPayments[month] = (cnssPayments[month] || ZERO) +
           parseMoney(plan.schedule[month], 'paiement CNSS ' + month)
@@ -115,6 +127,14 @@ function run(input: ForecastInput): ForecastResult {
     const paid = fiscal + social + other
     const cnssPaid = cnssPayments[month] || ZERO
 
+    if (cnssPaid > social) {
+      throw new CalcBlockedError([
+        'Les remboursements CNSS dépassent les remboursements sociaux du mois ' + month
+      ])
+    }
+
+    const paidArrears = fiscal + (social - cnssPaid) + other
+
     const arrearsStart = arrears
     const cnssStart = cnssPrincipal
     const majoration = input.accrueCnssMajoration
@@ -125,7 +145,7 @@ function run(input: ForecastInput): ForecastResult {
     const adjustment = adjustmentValue === undefined || adjustmentValue === null
       ? ZERO : parseMoney(adjustmentValue, month + ' ajustement')
 
-    const arrearsEnd = bmax(ZERO, arrearsStart + majoration + adjustment - paid)
+    const arrearsEnd = bmax(ZERO, arrearsStart + majoration + adjustment - paidArrears)
 
     const cashStart = cashKnown ? cash : null
     const cashInput = input.cash ? input.cash[month] : undefined
