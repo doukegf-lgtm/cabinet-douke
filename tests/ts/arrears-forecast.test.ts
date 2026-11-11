@@ -146,3 +146,12 @@ test('forecast : différentiel vs référence (800 scénarios sans échéancier 
     assert.deepEqual(a.summary, b.summary, 'synthèse ' + ctx)
   }
 })
+
+test('forecast : un plan CNSS de paie hors catégorie « social » est refusé', () => {
+  blocked(() => buildForecast(F(mkPlans([{ ...CNSS, type: 'fiscal' }]))), /remboursements sociaux/)
+})
+
+test('forecast : les remboursements CNSS de paie ne réduisent pas les arriérés', () => {
+  const r = buildForecast(F(mkPlans([CNSS], 3)))
+  assert.deepEqual(r.months.slice(0, 3).map(m => m.arrearsEnd), ['1000000', '1000000', '1000000'])
+})
