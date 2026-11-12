@@ -65,7 +65,7 @@ export interface Params {
   calcDate: string;                       // YYYY-MM-DD (jamais "aujourd'hui" implicite)
   headcount?: number;
   rpRateDefault?: string | null;          // taux notifié CNSS
-  paymentRecognition: 'verified_only' | 'all';
+
   contributionRules: ContributionRule[];
   procedure: ProcedureRule;
 }
@@ -239,30 +239,31 @@ export function computeCnss(lines: PayrollLine[], params: Params): CnssResult {
     }
     const due = emp + sal;
 
-    // paiement reconnu (Parametres!B24)
+    // Paie_CNSS V8 : Q (paiement) et AF (montant partiel) pilotent le solde.
+    // Parametres!B24 concerne le registre Paiements, pas les lignes de paie.
     let paid = Z;
-    const recognized = params.paymentRecognition === 'all' || l.paymentVerified === true;
-    if (l.payment === 'yes') { if (recognized) paid = due; else w.push('Paiement non vérifié : non reconnu'); }
-    else if (l.payment === 'partial') {
+    if (l.payment === 'yes') {
+      paid = due;
+    } else if (l.payment === 'partial') {
       if (l.amountPaid === undefined) throw new CnssBlockedError([`${id}: paiement partiel sans montant`]);
-      if (recognized) paid = money(l.amountPaid, `${id} amountPaid`); else w.push('Paiement partiel non vérifié : non reconnu');
+      paid = money(l.amountPaid, `${id} amountPaid`);
       if (paid > due) { w.push('Montant payé > dû : plafonné au dû'); paid = due; }
     }
-    const fullyPaid = paid === due && l.payment === 'yes' && recognized;
+    const fullyPaid = l.payment === 'yes';
     const unpaid = fullyPaid ? Z : due - paid;
 
-    // échéance et retard
+    // V8 : Q=Oui sans date de paiement donne Z=0.
     const dueStr = l.dueDate ?? computeDueDate(l.period, per, proc.dueDay);
     const dueD = parseDate(dueStr, `${id} échéance`);
     let late: number | null;
     if (l.manualLateMonths !== undefined) late = Math.max(0, l.manualLateMonths);
-    else if (fullyPaid && !l.paymentDate) { late = null; w.push('Payé sans date de paiement : retard indéterminé, pénalité NON calculée'); }
+    else if (fullyPaid && !l.paymentDate) late = 0;
     else late = lateMonths(dueD, l.paymentDate ? parseDate(l.paymentDate, `${id} paiement`) : calc, proc.lateCounting);
-    // base de pénalité du classeur (U) : payé => cotisation totale ; sinon => reste dû
+
+    // V8 U : payé => cotisation totale ; sinon => reste dû.
     const penBase = fullyPaid ? due : unpaid;
     const pen = late === null ? Z : mulRate(penBase * BigInt(late), penRate, `${id} pénalité`);
     if (l.payment === 'partial') w.push('Paiement partiel : retard du versement partiel non modélisé (limite du classeur)');
-
     out.push({ employeeId: l.employeeId, period: l.period, provenance: l.provenance, baseCommon: fmt(base), components: comps,
       employerTotal: fmt(emp), employeeShare: fmt(sal), totalDue: fmt(due), paidRecognized: fmt(paid), unpaid: fmt(unpaid),
       dueDateUsed: dueStr, lateMonths: late, penalty: fmt(pen), warnings: w });

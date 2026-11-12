@@ -36,12 +36,12 @@ test('blocages : règle absente, doublon, non validée, source non validée, for
   const miss = full().filter(x => x.code !== C.pfRate)
   const a = await resolveValidatedCnssRules(fake(miss, [SRC]), 2026); assert.equal(a.ok, false)
   const dup = [...full(), row(C.pfRate, '0.1', 'ratio', { id: 'dup' })]
-  const b = await resolveValidatedCnssRules(fake(dup, [SRC]), 2026); assert.ok(!b.ok && b.blockers[0].code === 'CNSS_RULE_OVERLAP')
+  const b = await resolveValidatedCnssRules(fake(dup, [SRC]), 2026); if (b.ok !== false) throw new Error('Blocage CNSS_RULE_OVERLAP attendu'); assert.equal(b.blockers[0].code, 'CNSS_RULE_OVERLAP')
   const nv = full().map(x => x.code === C.pfRate ? { ...x, verification_status: 'to_verify' } : x)
   assert.equal((await resolveValidatedCnssRules(fake(nv, [SRC]), 2026)).ok, false)
-  const c = await resolveValidatedCnssRules(fake(full(), [{ ...SRC, verification_status: 'to_verify' }]), 2026); assert.ok(!c.ok && c.blockers[0].code === 'CNSS_LEGAL_SOURCE_NOT_VALIDATED')
+  const c = await resolveValidatedCnssRules(fake(full(), [{ ...SRC, verification_status: 'to_verify' }]), 2026); if (c.ok !== false) throw new Error('Blocage CNSS_LEGAL_SOURCE_NOT_VALIDATED attendu'); assert.equal(c.blockers[0].code, 'CNSS_LEGAL_SOURCE_NOT_VALIDATED')
   const pct = full().map(x => x.code === C.pfRate ? { ...x, numeric_value: '9' } : x)
-  const d = await resolveValidatedCnssRules(fake(pct, [SRC]), 2026); assert.ok(!d.ok && d.blockers[0].code === 'CNSS_RATE_FORMAT_INVALID')
+  const d = await resolveValidatedCnssRules(fake(pct, [SRC]), 2026); if (d.ok !== false) throw new Error('Blocage CNSS_RATE_FORMAT_INVALID attendu'); assert.equal(d.blockers[0].code, 'CNSS_RATE_FORMAT_INVALID')
   const part = full().map(x => x.code === C.pfRate ? { ...x, effective_to: '2026-06-30' } : x)
   assert.equal((await resolveValidatedCnssRules(fake(part, [SRC]), 2026)).ok, false)
   const noArt = full().map(x => x.code === C.dueDay ? { ...x, article_reference: ' ' } : x)
@@ -79,7 +79,7 @@ test('lecture de saisie : refus des structures et valeurs invalides', () => {
 test('bout en bout : règles résolues -> saisie -> calcul exact, avec plafond pension', async () => {
   const res = await resolveValidatedCnssRules(fake(full(), [SRC]), 2026); assert.ok(res.ok); if (!res.ok) return
   const parsed = parseCnssSection(payload([L({ gross: '700000', bonuses: null })]))
-  const params: Params = { mode: 'validated', calcDate: '2026-10-20', headcount: parsed.headcount, rpRateDefault: parsed.rpRateDefault, paymentRecognition: 'all',
+  const params: Params = { mode: 'validated', calcDate: '2026-10-20', headcount: parsed.headcount, rpRateDefault: parsed.rpRateDefault,
     contributionRules: res.rules.contributionRules,
     procedure: { periodicity: 'by_headcount', headcountThreshold: res.rules.procedure.headcountThreshold, dueDay: res.rules.procedure.dueDay,
       lateCounting: res.rules.procedure.lateCounting, latePenaltyRate: res.rules.procedure.latePenaltyRate, status: 'validated', legalRef: res.rules.procedure.legalRef } }

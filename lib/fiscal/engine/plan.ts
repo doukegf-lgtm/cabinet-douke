@@ -123,26 +123,35 @@ function run(plans: PlanInput[], params: PlanParams): PlansResult {
 
     const step = plan.periodicityMonths
     const count = plan.durationMonths / step
-    const indicative = base > ZERO ? ceilToXof(base, count) : ZERO
+
+    // Le solde fourni est le solde actuel : les échéances passées
+    // consomment la durée contractuelle, mais ne réduisent plus ce solde.
+    const firstDueNumber = Math.max(
+      0,
+      Math.ceil((forecastIndex - startIndex) / step)
+    )
+    const remainingContractInstallments = Math.max(0, count - firstDueNumber)
+
+    const indicative = base > ZERO && remainingContractInstallments > 0
+      ? ceilToXof(base, remainingContractInstallments)
+      : ZERO
+
     const agreed = plan.convenedInstallment === undefined || plan.convenedInstallment === null
       ? null : parseMoney(plan.convenedInstallment, id + ' mensualité convenue')
     const installment = agreed === null ? indicative : agreed
 
-    const effectiveCount = installment > ZERO && base > ZERO
-      ? Number(ceilDiv(base, installment)) : count
+    // Une mensualité convenue est respectée ; le nombre réel d'échéances peut prolonger le contrat.
+    const effectiveFutureCount = installment > ZERO && base > ZERO
+      ? Number(ceilDiv(base, installment))
+      : remainingContractInstallments
+    const effectiveCount = firstDueNumber + effectiveFutureCount
     const contractEnd = addMonths(start, effectiveCount * step)
 
     const excluded = params.scope === 'confirmed_only' && plan.agreement !== 'confirmed'
 
     // L'ancrage reste la date initiale du plan.
-    // On saute les échéances antérieures au prévisionnel sans décaler la périodicité.
-    const firstDueNumber = Math.max(
-      0,
-      Math.ceil((forecastIndex - startIndex) / step)
-    )
     const firstDueIndex = startIndex + firstDueNumber * step
-    // Un contrat arrivé à son terme ne génère plus d'échéance.
-    const firstDue = excluded || firstDueNumber >= effectiveCount
+    const firstDue = excluded || remainingContractInstallments === 0
       ? null
       : firstDueIndex
 
@@ -159,7 +168,7 @@ function run(plans: PlanInput[], params: PlanParams): PlansResult {
         if (installmentNumber < effectiveCount) {
           payment = bmin(
             installment,
-            bmax(ZERO, base - installment * BigInt(installmentNumber))
+            bmax(ZERO, base - installment * BigInt(installmentNumber - firstDueNumber))
           )
         }
       }

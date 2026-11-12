@@ -80,7 +80,7 @@ test('input : des paiements sans aucune dette sont refusés', () => {
   blocked(() => calculateArrearsFromSections([sec('tax_operations', { debts: [] }), sec('social_operations', { debts: [] }), ok()[2]]), /sans dette fiscale ou sociale/)
 })
 
-test('input : dossier de paie CNSS seule (aucune dette, aucun paiement)', { todo: 'À DÉCIDER : le commentaire du code prévoit ce cas (consolidation vide), mais consolidateDebts([]) lève « Aucune dette à consolider » et la route renvoie « Consolidation impossible ».' }, () => {
+test('input : dossier de paie CNSS seule (aucune dette, aucun paiement)', () => {
   const r = calculateArrearsFromSections([sec('tax_operations', { debts: [] }), sec('social_operations', { debts: [] }), sec('payments', { payments: [] })])
   assert.equal(r.debts.length, 0)
 })

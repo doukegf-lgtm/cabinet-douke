@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       const rules = resolution.rules
       const params: Params = {
         mode: 'validated', calcDate: p.calc_date as string, headcount: parsed.headcount, rpRateDefault: parsed.rpRateDefault,
-        paymentRecognition: recognition as 'verified_only' | 'all', contributionRules: rules.contributionRules,
+        contributionRules: rules.contributionRules,
         procedure: {
           periodicity: 'by_headcount', headcountThreshold: rules.procedure.headcountThreshold, dueDay: rules.procedure.dueDay,
           lateCounting: rules.procedure.lateCounting, latePenaltyRate: rules.procedure.latePenaltyRate,

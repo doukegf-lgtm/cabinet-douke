@@ -231,5 +231,31 @@ export function calculateArrearsFromSections(
   // Un dossier peut ne contenir que des périodes de paie CNSS.
   // La consolidation générique vide permet alors au moteur CNSS
   // de produire le résultat consolidé sans dette fictive.
+  if (recognition !== 'verified_only' && recognition !== 'all') {
+    return fail('Mode de reconnaissance des paiements invalide')
+  }
+
+  if (debts.length === 0) {
+    return {
+      provisional: false,
+      debts: [],
+      totals: {
+        principal: '0',
+        penalty: '0',
+        paid: '0',
+        estimatedBalance: '0',
+        confirmedBalance: '0',
+        principalBalance: '0',
+        penaltyBalance: '0',
+        interest: '0',
+        interestBalance: '0',
+      },
+      byType: {},
+      byOrganism: {},
+      excludedPayments: { count: 0, amount: '0' },
+      warnings: [],
+    }
+  }
+
   return consolidateDebts(debts, payments, recognition)
 }

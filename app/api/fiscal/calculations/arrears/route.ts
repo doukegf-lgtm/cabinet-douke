@@ -11,6 +11,7 @@ import { resolveValidatedCnssRules } from '@/lib/fiscal/engine/cnss-rules'
 import { parseCnssSection } from '@/lib/fiscal/cnss-input'
 import { calculateArrearsFromSections } from '@/lib/fiscal/arrears-input'
 import { CalcBlockedError } from '@/lib/fiscal/engine/arrears-common'
+import { findCnssOriginViolations } from '@/lib/fiscal/engine/cnss-origin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -194,29 +195,19 @@ export async function POST(request: Request) {
     }
 
     // Empêcher le double comptage des dettes CNSS issues de la paie.
-    const cnssDebts = arrears.debts.filter(debt =>
-      debt.organism.toUpperCase().includes('CNSS') ||
-      debt.nature.toUpperCase().includes('CNSS'),
-    )
+    const cnssViolations = findCnssOriginViolations(arrears.debts)
 
-    const ambiguousCnss = cnssDebts.filter(
-      debt => debt.origin !== 'historical_notice',
-    )
-
-    if (ambiguousCnss.length > 0) {
+    if (cnssViolations.length > 0) {
       return errorResponse(
         'Chaque dette CNSS de social_operations doit être explicitement identifiée comme notification historique. Les cotisations de paie sont déjà calculées depuis cnss_periods.',
-        ambiguousCnss.map(debt => ({
-          code: debt.origin === 'payroll'
-            ? 'CNSS_PAYROLL_DUPLICATE'
-            : 'CNSS_ORIGIN_REQUIRED',
-          debt_id: debt.id,
-          nature: debt.nature,
-          origin: debt.origin ?? null,
+        cnssViolations.map(({ code, debt_id, nature, origin }) => ({
+          code,
+          debt_id,
+          nature,
+          origin,
         })),
       )
     }
-
     // 3. Résolution des règles CNSS validées.
     const resolution = await resolveValidatedCnssRules(client, fiscalYear)
 
@@ -237,7 +228,6 @@ export async function POST(request: Request) {
         calcDate: p.calc_date as string,
         headcount: parsed.headcount,
         rpRateDefault: parsed.rpRateDefault,
-        paymentRecognition: recognition as 'verified_only' | 'all',
         contributionRules: resolution.rules.contributionRules,
         procedure: {
           periodicity: 'by_headcount',

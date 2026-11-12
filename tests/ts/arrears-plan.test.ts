@@ -168,7 +168,7 @@ test('plan : début antérieur, l’échéancier reste ancré sur la date initia
   const p = plan([PL({ startDate: '2025-11-15' })], { horizonMonths: 12 }).plans[0]
   assert.equal(p.firstDebitMonth, '2026-01')
   assert.equal(p.lastPaymentMonth, '2026-10')
-  assert.equal(p.scheduled, '1000000')
+  assert.equal(p.scheduled, '1200000')
   assert.equal(p.contractEndDate, '2026-11-15')
 })
 
@@ -179,7 +179,7 @@ test('plan : début antérieur, contrat échu avant le prévisionnel → hors pr
   assert.equal(p.scheduled, '0')
 })
 
-test('plan : début antérieur, aucun « reste après horizon » si le contrat se termine dans l’horizon', { todo: 'À DÉCIDER : le solde (base) est-il celui au début du plan ou le solde actuel ? Aujourd’hui les échéances écoulées avant le prévisionnel (ici 200 000) sont comptées dans le reste.' }, () => {
+test('plan : début antérieur, le solde actuel est réparti sur les échéances restantes', () => {
   const r = plan([PL({ startDate: '2025-11-15' })], { horizonMonths: 12 })
   assert.equal(r.plans[0].control, 'OK')
   assert.equal(r.warnings.length, 0)
