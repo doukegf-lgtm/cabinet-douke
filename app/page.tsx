@@ -121,6 +121,9 @@ type AuthAccount = {
   color: string;
   scout_access?: boolean;
   eden_access?: boolean;
+  all_modules_access?: boolean;
+  asta_access?: boolean;
+  fiscal_access?: boolean;
 };
 
 // ============================================================
@@ -250,6 +253,9 @@ function LoginScreen({ onLogin }: { onLogin: (account: AuthAccount) => void }) {
         color: data.color,
         scout_access: data.scout_access ?? false,
         eden_access: data.eden_access ?? false,
+        all_modules_access: data.all_modules_access ?? false,
+        asta_access: data.asta_access ?? false,
+        fiscal_access: data.fiscal_access ?? false,
       };
       setAttempts(0);
       localStorage.setItem('eden_current_user', JSON.stringify(account));
@@ -2751,11 +2757,11 @@ export default function FullyLoadedPremiumDashboard() {
     { label: 'Réalisations', view: 'Réalisations', icon: <PenLine size={20} />, show: true },
     { label: 'Planification', view: 'Planification', icon: <Calendar size={20} />, show: true },
     { label: 'Équipe & Collaborateurs', view: 'Équipe', icon: <Users size={20} />, show: true },
-    { label: 'ASTA', view: 'ASTA', icon: <Brain size={20} />, show: isAdmin },
-    { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin },
-    { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
-    { label: 'Fiscal & Social', view: 'FISCAL', icon: <Landmark size={20} />, show: isAdmin },
-    { label: 'Offres & Contrats', view: 'OFFRES', icon: <Landmark size={20} />, show: isAdmin || currentUser?.scout_access === true },
+    { label: 'ASTA', view: 'ASTA', icon: <Brain size={20} />, show: isAdmin || currentUser?.all_modules_access === true || currentUser?.asta_access === true },
+    { label: 'Système EDEN', view: 'EDEN', icon: <Landmark size={20} />, show: isAdmin || currentUser?.all_modules_access === true || currentUser?.eden_access === true },
+    { label: 'SCOUT', view: 'SCOUT', icon: <Landmark size={20} />, show: isAdmin || currentUser?.all_modules_access === true || currentUser?.scout_access === true },
+    { label: 'Fiscal & Social', view: 'FISCAL', icon: <Landmark size={20} />, show: isAdmin || currentUser?.all_modules_access === true || currentUser?.fiscal_access === true },
+    { label: 'Offres & Contrats', view: 'OFFRES', icon: <Landmark size={20} />, show: isAdmin || currentUser?.all_modules_access === true || currentUser?.scout_access === true },
   ].filter((n) => n.show);
 
   const displayObjectives = (() => {

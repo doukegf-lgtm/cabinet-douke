@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireFiscalValidationAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 import {
   annualRpcError,
@@ -16,7 +16,7 @@ export async function PATCH(
   context: { params: { id: string; inputId: string } },
 ) {
   try {
-    const access = await requireAdmin()
+    const access = await requireFiscalValidationAccess()
     if (!access.ok) return access.response
 
     const { id, inputId } = context.params

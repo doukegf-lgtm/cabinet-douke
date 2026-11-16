@@ -18,6 +18,9 @@ interface ProfileRow {
   role: string
   eden_access: boolean
   scout_access: boolean
+  all_modules_access: boolean
+  fiscal_access: boolean
+  fiscal_validate_access: boolean
 }
 interface Service { id: string; nom: string; description: string; actif: boolean }
 
@@ -45,25 +48,41 @@ export default function EdenAdminPage() {
   async function load() {
     setLoading(true)
     const [acc, svc] = await Promise.all([
-      sb.from('auth_accounts').select('id, username, name, role, eden_access, scout_access').order('name'),
+      fetch('/api/platform/module-access', { cache: 'no-store' }),
       sb.from('scout_services_douke').select('*').order('nom')
     ])
-    setProfiles(acc.data || [])
+    const accessResult = acc.ok ? await acc.json() : null
+    setProfiles(accessResult?.data || [])
     setServices(svc.data || [])
+    if (!acc.ok) setMsg({ text: 'Chargement des accès impossible.', ok: false })
     setLoading(false)
   }
 
-  async function toggleAccess(p: ProfileRow, field: 'eden_access' | 'scout_access') {
+  async function toggleAccess(
+    p: ProfileRow,
+    field: 'eden_access' | 'scout_access' | 'fiscal_access' | 'fiscal_validate_access'
+  ) {
     setSaving(p.id + field)
     const newVal = !p[field]
-    const { error } = await sb.from('auth_accounts').update({ [field]: newVal }).eq('id', p.id)
-    if (error) { setMsg({ text: 'Erreur : ' + error.message, ok: false }) }
-    else {
-      setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, [field]: newVal } : x))
-      setMsg({ text: `Acces ${field==='eden_access'?'EDEN':'SCOUT'} ${newVal?'active':'desactive'} pour ${p.name}`, ok: true })
-      setTimeout(() => setMsg(null), 3000)
+    try {
+      const response = await fetch('/api/platform/module-access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: p.id, field, access_value: newVal }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) {
+        setMsg({ text: result?.error || 'Modification du droit impossible.', ok: false })
+      } else {
+        setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, [field]: newVal } : x))
+        setMsg({ text: `Droit ${field} ${newVal ? 'activé' : 'désactivé'} pour ${p.name}`, ok: true })
+        setTimeout(() => setMsg(null), 3000)
+      }
+    } catch {
+      setMsg({ text: 'Erreur réseau lors de la modification du droit.', ok: false })
+    } finally {
+      setSaving(null)
     }
-    setSaving(null)
   }
 
   async function toggleService(svc: Service) {
@@ -133,7 +152,7 @@ export default function EdenAdminPage() {
         <div style={{ background: '#162030', border: '1px solid rgba(201,168,76,.15)', borderRadius: '12px', overflow: 'hidden' }}>
           {loading ? <div style={{ padding: '20px', color: '#6B7A8D', fontSize: '13px' }}>Chargement...</div> : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Membre','Username','Role','EDEN','SCOUT'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Membre','Username','Role','EDEN','SCOUT','FISCAL','VALIDATION FISCALE'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
               <tbody>
                 {profiles.map(p => (
                   <tr key={p.id}>
@@ -153,6 +172,20 @@ export default function EdenAdminPage() {
                           {saving===p.id+'scout_access'?'...':p.scout_access?'Actif':'Inactif'}
                         </button>
                       ) : <span style={{ fontSize:'11px', color:'#3498db' }}>Vous</span>}
+                    </td>
+                    <td style={TD}>
+                      {p.id !== currentUserId ? (
+                        <button onClick={() => toggleAccess(p,'fiscal_access')} disabled={saving===p.id+'fiscal_access'} style={{ padding:'4px 12px', borderRadius:'6px', fontSize:'11px', fontWeight:500, cursor:'pointer', border:'1px solid', background:p.fiscal_access?'rgba(46,204,113,.1)':'rgba(231,76,60,.08)', color:p.fiscal_access?'#2ecc71':'#e74c3c', borderColor:p.fiscal_access?'rgba(46,204,113,.3)':'rgba(231,76,60,.2)' }}>
+                          {saving===p.id+'fiscal_access'?'...':p.fiscal_access?'Actif':'Inactif'}
+                        </button>
+                      ) : <span style={{ fontSize:'11px', color:'#2ecc71' }}>Vous</span>}
+                    </td>
+                    <td style={TD}>
+                      {p.id !== currentUserId ? (
+                        <button onClick={() => toggleAccess(p,'fiscal_validate_access')} disabled={saving===p.id+'fiscal_validate_access' || (!p.fiscal_access && !p.all_modules_access && !p.fiscal_validate_access)} style={{ padding:'4px 12px', borderRadius:'6px', fontSize:'11px', fontWeight:500, cursor:'pointer', border:'1px solid', background:p.fiscal_validate_access?'rgba(46,204,113,.1)':'rgba(231,76,60,.08)', color:p.fiscal_validate_access?'#2ecc71':'#e74c3c', borderColor:p.fiscal_validate_access?'rgba(46,204,113,.3)':'rgba(231,76,60,.2)' }}>
+                          {saving===p.id+'fiscal_validate_access'?'...':p.fiscal_validate_access?'Autorisé':'Non autorisé'}
+                        </button>
+                      ) : <span style={{ fontSize:'11px', color:'#2ecc71' }}>Vous</span>}
                     </td>
                   </tr>
                 ))}

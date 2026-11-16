@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import ModuleHomeLink from '@/components/fiscal-social/module-home-link'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireModuleAccess } from '@/lib/platform/module-access'
 import { FISCAL_MODULE } from '@/lib/fiscal/config'
 import AnnualInputClient from './saisie-client'
 import TaxProfileClient from './tax-profile-client'
@@ -17,7 +17,7 @@ export default async function AnnualInputPage({
 }: {
   params: { id: string }
 }) {
-  const access = await requireAdmin().catch(() => null)
+  const access = await requireModuleAccess('fiscal').catch(() => null)
   if (!access?.ok) redirect('/')
   if (!UUID.test(params.id)) notFound()
 

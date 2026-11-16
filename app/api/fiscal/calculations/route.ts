@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/platform/auth'
+import { requireFiscalValidationAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 
 export const runtime = 'nodejs'
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const access = await requireAdmin()
+    const access = await requireFiscalValidationAccess()
     if (!access.ok) return access.response
 
     const raw = await request.text()
