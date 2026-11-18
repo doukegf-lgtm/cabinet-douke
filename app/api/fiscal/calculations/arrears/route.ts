@@ -12,7 +12,8 @@ import { parseCnssSection } from '@/lib/fiscal/cnss-input'
 import { calculateArrearsFromSections } from '@/lib/fiscal/arrears-input'
 import { CalcBlockedError } from '@/lib/fiscal/engine/arrears-common'
 import { findCnssOriginViolations } from '@/lib/fiscal/engine/cnss-origin'
-
+import { calculateIs } from '@/lib/fiscal/engine/is'
+import { resolveValidatedIsRules } from '@/lib/fiscal/engine/is-rules'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -45,8 +46,8 @@ function serverError() {
   )
 }
 
-// Les deux moteurs utilisent une échelle BigInt de 1e14.
-// Le CNSS peut produire plus de deux décimales après application des taux.
+// Les deux moteurs utilisent une Ã©chelle BigInt de 1e14.
+// Le CNSS peut produire plus de deux dÃ©cimales aprÃ¨s application des taux.
 const SCALE = BigInt('100000000000000')
 
 function parseScaled(value: string): bigint {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     const raw = await request.text()
     if (raw.length > 10000) {
       return NextResponse.json(
-        { error: 'Requête trop volumineuse.' },
+        { error: 'RequÃªte trop volumineuse.' },
         { status: 413 },
       )
     }
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
 
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json(
-        { error: 'Données invalides.' },
+        { error: 'DonnÃ©es invalides.' },
         { status: 400 },
       )
     }
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
       (recognition !== 'verified_only' && recognition !== 'all')
     ) {
       return NextResponse.json(
-        { error: 'Paramètres invalides (dossier_id, fiscal_year, calc_date).' },
+        { error: 'ParamÃ¨tres invalides (dossier_id, fiscal_year, calc_date).' },
         { status: 400 },
       )
     }
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
     const fiscalYear = p.fiscal_year as number
     const client = getServiceClient()
 
-    // 1. Récupération des saisies du dossier.
+    // 1. RÃ©cupÃ©ration des saisies du dossier.
     const { data: listed, error: listError } = await client.rpc(
       'fiscal_list_section_inputs',
       {
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
 
       if (matches[0].status !== 'validated') {
         return errorResponse(
-          `La section ${code} doit être validée avant le calcul.`,
+          `La section ${code} doit Ãªtre validÃ©e avant le calcul.`,
           [{
             code: 'SECTION_NOT_VALIDATED',
             section: code,
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof CalcBlockedError) {
         return errorResponse(
-          'Consolidation des arriérés impossible.',
+          'Consolidation des arriÃ©rÃ©s impossible.',
           error.blockers.map((message: string) => ({
             code: 'ARREARS_BLOCKED',
             message,
@@ -194,12 +195,12 @@ export async function POST(request: Request) {
       throw error
     }
 
-    // Empêcher le double comptage des dettes CNSS issues de la paie.
+    // EmpÃªcher le double comptage des dettes CNSS issues de la paie.
     const cnssViolations = findCnssOriginViolations(arrears.debts)
 
     if (cnssViolations.length > 0) {
       return errorResponse(
-        'Chaque dette CNSS de social_operations doit être explicitement identifiée comme notification historique. Les cotisations de paie sont déjà calculées depuis cnss_periods.',
+        'Chaque dette CNSS de social_operations doit Ãªtre explicitement identifiÃ©e comme notification historique. Les cotisations de paie sont dÃ©jÃ  calculÃ©es depuis cnss_periods.',
         cnssViolations.map(({ code, debt_id, nature, origin }) => ({
           code,
           debt_id,
@@ -208,12 +209,12 @@ export async function POST(request: Request) {
         })),
       )
     }
-    // 3. Résolution des règles CNSS validées.
+    // 3. RÃ©solution des rÃ¨gles CNSS validÃ©es.
     const resolution = await resolveValidatedCnssRules(client, fiscalYear)
 
     if (!resolution.ok) {
       return errorResponse(
-        'Règles CNSS non validées ou incomplètes.',
+        'RÃ¨gles CNSS non validÃ©es ou incomplÃ¨tes.',
         resolution.blockers,
       )
     }
@@ -246,7 +247,7 @@ export async function POST(request: Request) {
 
       if (lines.length !== parsed.lines.length) {
         throw new CnssBlockedError([
-          'Des lignes de paie sortent de l’exercice demandé.',
+          'Des lignes de paie sortent de lâ€™exercice demandÃ©.',
         ])
       }
 
@@ -312,7 +313,7 @@ export async function POST(request: Request) {
       CNSS: addMoney(arrears.byOrganism.CNSS || '0', cnssBalance),
     }
 
-    // 6. Instantané consolidé : les deux résultats détaillés sont conservés.
+    // 6. InstantanÃ© consolidÃ© : les deux rÃ©sultats dÃ©taillÃ©s sont conservÃ©s.
     const inputSnapshot = {
       kind: 'arrears_consolidated',
       fiscal_year: fiscalYear,
@@ -339,6 +340,127 @@ export async function POST(request: Request) {
       cnss_rules_trace: resolution.rules.trace,
     }
 
+    //  IS : récupération indépendante des données annuelles validées.
+    // Une absence de données ou de règles IS ne bloque jamais DGI + CNSS.
+    let annualInputStatus: string = 'missing'
+    let annualInputBlockers: Array<{ code: string; message: string }> = []
+    let annualPayload: Record<string, unknown> = {}
+
+    try {
+      const { data: annualListed, error: annualError } = await client.rpc(
+        'fiscal_list_annual_inputs',
+        {
+          p_actor_id: access.session.sub,
+          p_dossier_id: p.dossier_id,
+        },
+      )
+
+      if (annualError) {
+        annualInputBlockers.push({
+          code: 'ANNUAL_INPUT_LOOKUP_FAILED',
+          message: 'Impossible de récupérer les données annuelles IS.',
+        })
+      } else {
+        const annualRows = (
+          (annualListed as { data?: Array<Record<string, unknown>> } | null)?.data ?? []
+        )
+
+        const annualInput = annualRows.find(
+          row => row.fiscal_year === fiscalYear,
+        )
+
+        if (!annualInput) {
+          annualInputBlockers.push({
+            code: 'ANNUAL_INPUT_MISSING',
+            message: `Aucune saisie annuelle IS pour l'exercice ${fiscalYear}.`,
+          })
+        } else {
+          annualInputStatus = String(annualInput.status ?? 'unknown')
+
+          if (annualInput.status === 'validated') {
+            if (
+              annualInput.payload
+              && typeof annualInput.payload === 'object'
+              && !Array.isArray(annualInput.payload)
+            ) {
+              annualPayload = annualInput.payload as Record<string, unknown>
+            }
+          } else {
+            annualInputBlockers.push({
+              code: 'ANNUAL_INPUT_NOT_VALIDATED',
+              message: 'La saisie annuelle IS doit être validée avant calcul.',
+            })
+          }
+        }
+      }
+    } catch {
+      annualInputBlockers.push({
+        code: 'ANNUAL_INPUT_LOOKUP_FAILED',
+        message: 'Erreur lors de la récupération des données annuelles IS.',
+      })
+    }
+
+    // Résolution des trois paramètres IS depuis le référentiel validé.
+    // Les codes sont configurables côté serveur : aucun taux n'est inventé.
+    const isRuleCodes = {
+      isRateCode: process.env.FISCAL_IS_RATE_CODE ?? '',
+      minimumRateCode: process.env.FISCAL_IS_MINIMUM_RATE_CODE ?? '',
+      minimumFloorCode: process.env.FISCAL_IS_MINIMUM_FLOOR_CODE ?? '',
+    }
+
+    const isRulesResolution = await resolveValidatedIsRules(
+      client,
+      fiscalYear,
+      isRuleCodes,
+    )
+
+    const isRuleBlockers = isRulesResolution.ok
+      ? []
+      : isRulesResolution.blockers
+    const isResult = calculateIs({
+      fiscalYear,
+      taxRegime: (() => {
+        const profiles = sections.filter(
+          section =>
+            section.section_code === 'tax_profile' &&
+            section.fiscal_year === fiscalYear,
+        )
+
+        if (profiles.length !== 1 || profiles[0].status !== 'validated') {
+          return null
+        }
+
+        const payload = profiles[0].payload
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+          return null
+        }
+
+        const profile = payload as Record<string, unknown>
+        const nested = profile.profile
+        const nestedProfile =
+          nested && typeof nested === 'object' && !Array.isArray(nested)
+            ? nested as Record<string, unknown>
+            : null
+
+        const regime = profile.tax_regime_code ?? nestedProfile?.tax_regime_code
+
+        return typeof regime === 'string' && regime.trim()
+          ? regime.trim().toUpperCase()
+          : null
+      })(),
+      sourceMode: annualPayload.source_mode === 'actual' ? 'actual' : 'estimated',
+      amounts: {
+        ca_fiscal_ht: annualPayload.ca_fiscal_ht as string | number | null ?? null,
+        charges_comptables: annualPayload.charges_comptables as string | number | null ?? null,
+        charges_deductibles_justifiees: annualPayload.charges_deductibles_justifiees as string | number | null ?? null,
+        reintegrations_fiscales: annualPayload.reintegrations_fiscales as string | number | null ?? null,
+        deductions_fiscales: annualPayload.deductions_fiscales as string | number | null ?? null,
+        acomptes_is_justifies: annualPayload.acomptes_is_justifies as string | number | null ?? null,
+        credits_is_valides: annualPayload.credits_is_valides as string | number | null ?? null,
+      },
+      // Aucun code réglementaire IS n'est encore défini dans le projet.
+      rules: isRulesResolution.ok ? isRulesResolution.rules : null,
+    })
     const resultSnapshot = {
       provisional: false,
       fiscal_year: fiscalYear,
@@ -349,10 +471,14 @@ export async function POST(request: Request) {
       byOrganism,
       dgi_and_social: arrears,
       cnss,
+      is: isResult,
+      is_annual_input_status: annualInputStatus,
+      is_annual_input_blockers: annualInputBlockers,
+      is_rule_resolution_blockers: isRuleBlockers,
       warnings: [
         ...arrears.warnings,
         ...cnss.warnings,
-        'Résultat consolidé : vérifier la concordance avec le classeur V8 avant toute certification.',
+        'RÃ©sultat consolidÃ© : vÃ©rifier la concordance avec le classeur V8 avant toute certification.',
       ],
     }
 
@@ -412,7 +538,7 @@ export async function POST(request: Request) {
       {
         data,
         totals,
-        message: 'Calcul consolidé DGI + CNSS enregistré. Il doit être soumis à revue puis validé.',
+        message: 'Calcul consolidÃ© DGI + CNSS enregistrÃ©. Il doit Ãªtre soumis Ã  revue puis validÃ©.',
       },
       { status: 201, headers: NO_STORE },
     )
@@ -420,3 +546,4 @@ export async function POST(request: Request) {
     return serverError()
   }
 }
+
