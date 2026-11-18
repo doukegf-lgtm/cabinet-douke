@@ -19,17 +19,17 @@ export default async function FiscalDossiersPage() {
           <ModuleHomeLink />
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
-              CABINET DOUKE Â· ESPACE PROFESSIONNEL
+              CABINET DOUKE · ESPACE PROFESSIONNEL
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
-              RÃ©gularisation fiscale & sociale
+              Régularisation fiscale & sociale
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Gestion centralisÃ©e des clients et des missions du cabinet.
+              Gestion centralisée des clients et des missions du cabinet.
             </p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-            Espace sÃ©curisÃ© Â· v{FISCAL_MODULE.version}
+            Espace sécurisé · v{FISCAL_MODULE.version}
           </div>
         </div>
       </div>
@@ -40,27 +40,27 @@ export default async function FiscalDossiersPage() {
             ESPACE DE TRAVAIL
           </div>
           <Link href="/fiscal-social" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
-            <span>â–¦</span> Clients
+            <span>●</span> Clients
           </Link>
           <div className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
-            <span>â–£</span> Dossiers
+            <span>▣</span> Dossiers
           </div>
           <Link href="/fiscal-social/documents" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
-            <span>â–¤</span> Documents
+            <span>▤</span> Documents
           </Link>
           <Link href="/fiscal-social/audit" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
-            <span>â–¤</span> Journal dâ€™audit
+            <span>▤</span> Journal d’audit
           </Link>
           <Link href="/fiscal-social/calculs" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-100">
-            <span>âŒ</span> Calculs
+            <span>∑</span> Calculs
           </Link>
           <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="text-xs font-bold text-amber-900">Moteur de calcul</div>
             <p className="mt-2 text-xs leading-5 text-amber-800">
-              Les calculs dÃ©finitifs restent dÃ©sactivÃ©s jusqu'Ã  la validation des rÃ¨gles et barÃ¨mes rÃ©glementaires.
+              Les calculs définitifs restent désactivés jusqu'à  la validation des règles et barèmes réglementaires.
             </p>
             <div className="mt-3 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-              NON CERTIFIÃ‰
+              NON CERTIFIÉ
             </div>
           </div>
         </aside>
@@ -71,7 +71,7 @@ export default async function FiscalDossiersPage() {
       </div>
 
       <footer className="border-t border-slate-200 bg-white px-5 py-4 text-center text-xs text-slate-400">
-        Cabinet DOUKE Â· Module Fiscal & Social Â· DonnÃ©es isolÃ©es et journalisÃ©es
+        Cabinet DOUKE · Module Fiscal & Social · Données isolées et journalisées
       </footer>
     </main>
   )
