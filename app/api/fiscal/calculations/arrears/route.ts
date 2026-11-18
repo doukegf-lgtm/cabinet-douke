@@ -436,13 +436,13 @@ export async function POST(request: Request) {
         }
 
         const profile = payload as Record<string, unknown>
-        const nested = profile.profile
-        const nestedProfile =
-          nested && typeof nested === 'object' && !Array.isArray(nested)
-            ? nested as Record<string, unknown>
-            : null
+        const data = profile.data
 
-        const regime = profile.tax_regime_code ?? nestedProfile?.tax_regime_code
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          return null
+        }
+
+        const regime = (data as Record<string, unknown>).tax_regime_code
 
         return typeof regime === 'string' && regime.trim()
           ? regime.trim().toUpperCase()
