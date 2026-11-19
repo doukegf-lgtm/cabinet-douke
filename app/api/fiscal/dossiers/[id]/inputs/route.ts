@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireModuleAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 import {
   annualRpcError,
@@ -17,7 +17,7 @@ export async function GET(
   context: { params: { id: string } },
 ) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const dossierId = context.params.id
@@ -42,7 +42,7 @@ export async function POST(
   context: { params: { id: string } },
 ) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const dossierId = context.params.id

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireModuleAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 import {
   readJsonBody,
@@ -19,7 +19,7 @@ export async function PATCH(
   context: { params: { id: string } },
 ) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const clientId = context.params.id

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireModuleAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 import { DOCUMENT_BUCKET, documentError, isUuid } from '@/lib/fiscal/document-api'
 
@@ -10,7 +10,7 @@ type Context = { params: { id: string } }
 
 export async function GET(_request: Request, { params }: Context) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
     if (!isUuid(params.id)) return documentError('Identifiant de document invalide.')
 
@@ -50,7 +50,7 @@ export async function GET(_request: Request, { params }: Context) {
 
 export async function PATCH(request: Request, { params }: Context) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
     if (!isUuid(params.id)) return documentError('Identifiant de document invalide.')
 
