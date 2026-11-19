@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
-import { requireFiscalValidationAccess } from '@/lib/platform/module-access'
+
+import { requireFiscalValidationAccess, requireModuleAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 
 export const runtime = 'nodejs'
@@ -19,7 +19,7 @@ function serverError() {
 
 export async function GET(request: Request) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const params = new URL(request.url).searchParams
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const raw = await request.text()

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/platform/auth'
+import { requireModuleAccess } from '@/lib/platform/module-access'
 import { getServiceClient } from '@/lib/platform/supabase-server'
 import {
   DOCUMENT_BUCKET,
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const params = new URL(request.url).searchParams
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   let insertedId: string | null = null
 
   try {
-    const access = await requireAdmin()
+    const access = await requireModuleAccess('fiscal')
     if (!access.ok) return access.response
 
     const form = await request.formData()
