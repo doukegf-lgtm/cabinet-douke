@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 type Client = {
   id: string
@@ -219,13 +220,21 @@ export default function ClientsClient() {
             Centralisez les informations administratives de vos clients.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200"
-        >
-          <span className="text-lg leading-none">+</span>
-          Nouveau client
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/fiscal-social/import"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50"
+          >
+            Importer une souscription
+          </Link>
+          <button
+            onClick={openCreate}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200"
+          >
+            <span className="text-lg leading-none">+</span>
+            Nouveau client
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
