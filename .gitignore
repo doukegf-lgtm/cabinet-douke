@@ -9,3 +9,13 @@ node_modules
 
 /private/fiscal/
 .fiscal-test-build/
+
+# Fichiers de travail : ne jamais publier
+.backups/
+souscriptions/
+scripts/intake/
+acces_code.txt
+diag_*.txt
+pour_claude*.txt
+diagnostic-*.md
+diagnostic-*.txt
